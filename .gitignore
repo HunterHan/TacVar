@@ -56,3 +56,8 @@ dkms.conf
 .vscode/
 .debug/
 .DS_Store
+
+# Output data
+*.log
+*.csv
+

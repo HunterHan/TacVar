@@ -2,7 +2,7 @@
 
 TacVar is a toolset for tackling variability in parallel running time measurement. It includes several tools to measure, quantify and filter unstable timing readings in multi-core processors and accelerators.
 
-Here is core tools in TacVar:
+Here are core tools in TacVar:
 - ParTES: Measuring the minimal 'measurable' running time of your server under different run-time environment.
 - Vkern: Obeserving the deviation and error of your performance measurement results caused by timing fluctuation.
 - Filter: Filtering a noisy running time distribution for better measurement accuracy.

@@ -646,9 +646,31 @@ main(int argc, char **argv) {
         // Instruction preload.
         ra = n + npre;
         rb = b;
-        while (ra != n) {
-            ra = ra - rb;
-        }
+#ifdef __x86_64__
+        __asm__ __volatile__ (
+            "1:\n\t"
+            "cmp %2, %0\n\t"
+            "je 2f\n\t"
+            "sub %1, %0\n\t"
+            "jmp 1b\n\t"
+            "2:\n\t"
+            : "+r" (ra)
+            : "r" (rb), "r" (n)
+            : "cc"
+        );
+#elif defined(__aarch64__)
+        __asm__ __volatile__ (
+            "1:\n\t"
+            "cmp %0, %2\n\t"
+            "beq 2f\n\t"
+            "sub %0, %0, %1\n\t"
+            "b 1b\n\t"
+            "2:\n\t"
+            : "+r" (ra)
+            : "r" (rb), "r" (n)
+            : "cc"
+        );
+#endif
 
         // Timing.
 #ifndef TIMING_OFF
@@ -681,9 +703,31 @@ main(int argc, char **argv) {
 #endif // END: TIMING_OFF
 
         // ===========DSub Kernel===========
-        while (ra!= 0) {
-            ra = ra - rb;
-        }
+#ifdef __x86_64__
+        __asm__ __volatile__ (
+            "1:\n\t"
+            "cmp $0, %0\n\t"
+            "je 2f\n\t"
+            "sub %1, %0\n\t"
+            "jmp 1b\n\t"
+            "2:\n\t"
+            : "+r" (ra)
+            : "r" (rb)
+            : "cc"
+        );
+#elif defined(__aarch64__)
+        __asm__ __volatile__ (
+            "1:\n\t"
+            "cmp %0, #0\n\t"
+            "beq 2f\n\t"
+            "sub %0, %0, %1\n\t"
+            "b 1b\n\t"
+            "2:\n\t"
+            : "+r" (ra)
+            : "r" (rb)
+            : "cc"
+        );
+#endif
         // ===========End of DSub Kernel===========
 
 #ifndef TIMING_OFF
@@ -722,6 +766,7 @@ main(int argc, char **argv) {
         _read_ns (ns1);
         _mfence;
 #endif
+        printf("ns1 = %lu, ns0 = %lu\n", ns1, ns0);
         p_ns[iwalk] = ns1 - ns0;
 
 #endif // END: TIMING_OFF
