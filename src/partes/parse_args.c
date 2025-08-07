@@ -21,6 +21,108 @@
  * --ntests: Number of gauge measurements.
  * --nsub: Number of subtractions per gauge measurement.
  */
+
+// Function to set kernel function pointers based on kernel types
+void 
+set_kernel_functions(pt_test_options_t *ptopts, pt_kern_func_t *ptfuncs) 
+{
+    // Initialize all function pointers to NULL
+    ptfuncs->init_fkern = NULL;
+    ptfuncs->run_fkern = NULL;
+    ptfuncs->cleanup_fkern = NULL;
+    ptfuncs->init_rkern = NULL;
+    ptfuncs->run_rkern = NULL;
+    ptfuncs->cleanup_rkern = NULL;
+
+    // Set front kernel functions
+    switch (ptopts->fkern) {
+        case KERN_NONE:
+            ptfuncs->init_fkern = init_kern_none;
+            ptfuncs->run_fkern = run_kern_none;
+            ptfuncs->cleanup_fkern = cleanup_kern_none;
+            break;
+        case KERN_TRIAD:
+            ptfuncs->init_fkern = init_kern_triad;
+            ptfuncs->run_fkern = run_kern_triad;
+            ptfuncs->cleanup_fkern = cleanup_kern_triad;
+            break;
+        case KERN_SCALE:
+            ptfuncs->init_fkern = init_kern_scale;
+            ptfuncs->run_fkern = run_kern_scale;
+            ptfuncs->cleanup_fkern = cleanup_kern_scale;
+            break;
+        case KERN_COPY:
+            ptfuncs->init_fkern = init_kern_copy;
+            ptfuncs->run_fkern = run_kern_copy;
+            ptfuncs->cleanup_fkern = cleanup_kern_copy;
+            break;
+        case KERN_ADD:
+            ptfuncs->init_fkern = init_kern_add;
+            ptfuncs->run_fkern = run_kern_add;
+            ptfuncs->cleanup_fkern = cleanup_kern_add;
+            break;
+        case KERN_POW:
+            ptfuncs->init_fkern = init_kern_pow;
+            ptfuncs->run_fkern = run_kern_pow;
+            ptfuncs->cleanup_fkern = cleanup_kern_pow;
+            break;
+        case KERN_DGEMM:
+            ptfuncs->init_fkern = init_kern_dgemm;
+            ptfuncs->run_fkern = run_kern_dgemm;
+            ptfuncs->cleanup_fkern = cleanup_kern_dgemm;
+            break;
+        case KERN_MPI_BCAST:
+            ptfuncs->init_fkern = init_kern_bcast;
+            ptfuncs->run_fkern = run_kern_bcast;
+            ptfuncs->cleanup_fkern = cleanup_kern_bcast;
+            break;
+    }
+
+    // Set rear kernel functions
+    switch (ptopts->rkern) {
+        case KERN_NONE:
+            ptfuncs->init_rkern = init_kern_none;
+            ptfuncs->run_rkern = run_kern_none;
+            ptfuncs->cleanup_rkern = cleanup_kern_none;
+            break;
+        case KERN_TRIAD:
+            ptfuncs->init_rkern = init_kern_triad;
+            ptfuncs->run_rkern = run_kern_triad;
+            ptfuncs->cleanup_rkern = cleanup_kern_triad;
+            break;
+        case KERN_SCALE:
+            ptfuncs->init_rkern = init_kern_scale;
+            ptfuncs->run_rkern = run_kern_scale;
+            ptfuncs->cleanup_rkern = cleanup_kern_scale;
+            break;
+        case KERN_COPY:
+            ptfuncs->init_rkern = init_kern_copy;
+            ptfuncs->run_rkern = run_kern_copy;
+            ptfuncs->cleanup_rkern = cleanup_kern_copy;
+            break;
+        case KERN_ADD:
+            ptfuncs->init_rkern = init_kern_add;
+            ptfuncs->run_rkern = run_kern_add;
+            ptfuncs->cleanup_rkern = cleanup_kern_add;
+            break;
+        case KERN_POW:
+            ptfuncs->init_rkern = init_kern_pow;
+            ptfuncs->run_rkern = run_kern_pow;
+            ptfuncs->cleanup_rkern = cleanup_kern_pow;
+            break;
+        case KERN_DGEMM:
+            ptfuncs->init_rkern = init_kern_dgemm;
+            ptfuncs->run_rkern = run_kern_dgemm;
+            ptfuncs->cleanup_rkern = cleanup_kern_dgemm;
+            break;
+        case KERN_MPI_BCAST:
+            ptfuncs->init_rkern = init_kern_bcast;
+            ptfuncs->run_rkern = run_kern_bcast;
+            ptfuncs->cleanup_rkern = cleanup_kern_bcast;
+            break;
+    }
+}
+
 int
 parse_ptargs(int argc, char *argv[], pt_test_options_t *ptopts, pt_kern_func_t *ptfuncs)
 {

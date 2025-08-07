@@ -12,6 +12,7 @@ MAIN_SRC = $(SRCDIR)/partes.c
 PARSE_SRC = $(SRCDIR)/parse_args.c
 STRESS_SRC = $(SRCDIR)/stress_timer.c
 PTERR_SRC = $(SRCDIR)/pterr.c
+STAT_SRC = $(SRCDIR)/stat.c
 
 # Kernel source files
 KERNEL_SRCS = $(KERNELDIR)/none.c \
@@ -27,7 +28,7 @@ KERNEL_SRCS = $(KERNELDIR)/none.c \
 TIMER_SRCS = $(wildcard $(TIMERDIR)/*.c)
 
 # All source files
-ALL_SRCS = $(MAIN_SRC) $(PARSE_SRC) $(STRESS_SRC) $(PTERR_SRC) $(KERNEL_SRCS) $(TIMER_SRCS)
+ALL_SRCS = $(MAIN_SRC) $(PARSE_SRC) $(STRESS_SRC) $(PTERR_SRC) $(STAT_SRC) $(KERNEL_SRCS) $(TIMER_SRCS)
 
 # Object files
 OBJS = $(ALL_SRCS:.c=.o)
@@ -59,10 +60,11 @@ uninstall:
 	rm -f /usr/local/bin/$(TARGET)
 
 # Dependencies
-$(SRCDIR)/partes.o: $(SRCDIR)/partes.c $(SRCDIR)/partes_types.h $(SRCDIR)/pterr.h $(KERNELDIR)/kernels.h
-$(SRCDIR)/parse_args.o: $(SRCDIR)/parse_args.c $(SRCDIR)/partes_types.h $(KERNELDIR)/kernels.h
+$(SRCDIR)/partes.o: $(SRCDIR)/partes.c $(SRCDIR)/partes_types.h $(SRCDIR)/pterr.h $(KERNELDIR)/kernels.h 
+$(SRCDIR)/parse_args.o: $(SRCDIR)/parse_args.c $(SRCDIR)/partes_types.h $(KERNELDIR)/kernels.h $(SRCDIR)/pterr.h
 $(SRCDIR)/stress_timer.o: $(SRCDIR)/stress_timer.c
 $(SRCDIR)/pterr.o: $(SRCDIR)/pterr.c $(SRCDIR)/pterr.h
+$(SRCDIR)/stat.o: $(SRCDIR)/stat.c 
 
 # Kernel dependencies
 $(KERNELDIR)/none.o: $(KERNELDIR)/none.c
