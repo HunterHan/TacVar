@@ -5,15 +5,16 @@
 #include <stdio.h>
 #include <stdint.h>
 
-void init_kern_none(size_t flush_kib) {
-    // No initialization needed
-    (void)flush_kib; // Suppress unused parameter warning
+void init_kern_none(size_t flush_kib, int id, size_t *flush_kib_real) {
+    (void)flush_kib;
+    (void)id;
+    if (flush_kib_real) *flush_kib_real = 0;
 }
 
-void run_kern_none(void) {
-    // No operation
+void run_kern_none(int id) {
+    (void)id;
 }
 
-void cleanup_kern_none(void) {
-    // No cleanup needed
+void cleanup_kern_none(int id) {
+    (void)id;
 }

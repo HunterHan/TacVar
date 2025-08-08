@@ -69,12 +69,13 @@ main(int argc, char *argv[])
     }
 
     /* Initialize kernels */
+    size_t fsize_real = 0, rsize_real = 0;
     if (ptfuncs.init_fkern) {
-        ptfuncs.init_fkern(ptopts.fsize);
+        ptfuncs.init_fkern(ptopts.fsize, PT_CALL_ID_FRONT, &fsize_real);
     }
     
     if (ptfuncs.init_rkern) {
-        ptfuncs.init_rkern(ptopts.rsize);
+        ptfuncs.init_rkern(ptopts.rsize, PT_CALL_ID_REAR, &rsize_real);
     }
 
     /* Step 1: Get the minimum overhead and time per tick */
@@ -119,7 +120,7 @@ main(int argc, char *argv[])
         
         // Run front kernel
         if (ptfuncs.run_fkern) {
-            ptfuncs.run_fkern();
+            ptfuncs.run_fkern(PT_CALL_ID_FRONT);
         }
         
         // Start timing
@@ -162,9 +163,8 @@ main(int argc, char *argv[])
         
         // Run rear kernel
         if (ptfuncs.run_rkern) {
-            ptfuncs.run_rkern();
+            ptfuncs.run_rkern(PT_CALL_ID_REAR);
         }
-        printf("%d\n", test);
         
         MPI_Barrier(MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
@@ -213,11 +213,11 @@ main(int argc, char *argv[])
 
     /* Cleanup kernels */
     if (ptfuncs.cleanup_fkern) {
-        ptfuncs.cleanup_fkern();
+        ptfuncs.cleanup_fkern(PT_CALL_ID_FRONT);
     }
     
     if (ptfuncs.cleanup_rkern) {
-        ptfuncs.cleanup_rkern();
+        ptfuncs.cleanup_rkern(PT_CALL_ID_REAR);
     }
 
     MPI_Finalize();

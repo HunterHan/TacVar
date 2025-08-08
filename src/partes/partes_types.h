@@ -5,11 +5,16 @@
 #ifndef PARTES_TYPES_H
 #define PARTES_TYPES_H
 
+#include <stddef.h>
+
 typedef struct {
     size_t fsize, rsize;
     int fkern, rkern, timer;
     int ntests, nsub;
 } pt_test_options_t;
+
+#define PT_CALL_ID_FRONT 0
+#define PT_CALL_ID_REAR  1
 
 enum timer_name {
     TIMER_NONE = 0,
@@ -29,12 +34,14 @@ enum kern_name {
 };
 
 typedef struct {
-    void (*init_fkern)(size_t flush_kib);
-    void (*run_fkern)(void);
-    void (*cleanup_fkern)(void);
-    void (*init_rkern)(size_t flush_kib);
-    void (*run_rkern)(void);
-    void (*cleanup_rkern)(void);
+    /* Front kernel function set */
+    void (*init_fkern)(size_t flush_kib, int id, size_t *flush_kib_real);
+    void (*run_fkern)(int id);
+    void (*cleanup_fkern)(int id);
+    /* Rear kernel function set */
+    void (*init_rkern)(size_t flush_kib, int id, size_t *flush_kib_real);
+    void (*run_rkern)(int id);
+    void (*cleanup_rkern)(int id);
 } pt_kern_func_t;
 
 typedef struct {
