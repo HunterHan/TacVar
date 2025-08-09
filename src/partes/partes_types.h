@@ -7,14 +7,18 @@
 
 #include <stddef.h>
 
+#define PT_CALL_ID_FRONT 0
+#define PT_CALL_ID_REAR  1
+#define UPPER_HZ 10000000000ULL // 10GHz
+#define LOWER_HZ 100000000ULL   // 100MHz
+#define NUM_IGNORE_TIMING 2 // Ignore the first 2 results by default
+
 typedef struct {
     size_t fsize, rsize;
     int fkern, rkern, timer;
     int ntests, nsub;
 } pt_test_options_t;
 
-#define PT_CALL_ID_FRONT 0
-#define PT_CALL_ID_REAR  1
 
 enum timer_name {
     TIMER_NONE = 0,
@@ -51,5 +55,18 @@ typedef struct {
     void (*gettime_e)(void);
     void (*close_timer)(void);
 } pt_timer_func_t;
+
+typedef struct {
+    uint64_t tick; // Nanoseconds per tick
+    int64_t ovh; // Overhead per tick
+} pt_timer_info_t;
+
+typedef struct {
+    uint64_t cy_per_op; // Cycles per operation
+    double wtime_per_op; // Wall time per operation
+    int64_t nop_per_tick; // The number of operations per tick
+    int64_t core_freq; // The frequency of the core when running the gauge kernel
+} pt_gauge_info_t;
+
 
 #endif

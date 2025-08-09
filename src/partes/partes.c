@@ -24,6 +24,7 @@ extern int stress_timer(int ntpint, int nint, int tint, int nwint, long long *ti
 extern int parse_ptargs(int argc, char *argv[], pt_test_options_t *ptopts, pt_kern_func_t *ptfuncs);
 extern void set_kernel_functions(pt_test_options_t *ptopts, pt_kern_func_t *ptfuncs);
 extern void calc_w(int64_t *tm_arr, uint64_t tm_len, int64_t *sim_cdf, int64_t *w_arr, double *wp_arr, double p_zcut);
+extern int detect_standard_sub_time(int myrank, int nrank, double *sub_ns_out, int *is_stable_out);
 
 int 
 main(int argc, char *argv[]) 
@@ -87,7 +88,19 @@ main(int argc, char *argv[])
         printf("Tick: %lld, Overhead: %lld\n", tick, ovh);
     }
 
-    /* Step 2: Run the timing error sensor */
+    /* Step 2: Detect theoretical time of the gauge kernel */
+    // The gauge block is a kernel whose actual runtime changes with a single key parameter
+    // (the number of subtractions). We fit runtime vs. nsub to a line to obtain time-per-sub,
+    // and then test its short-term stability within a ~10s window.
+    double sub_ns = 0.0; int is_stable = 0;
+    err = detect_standard_sub_time(myrank, nrank, &sub_ns, &is_stable);
+    _ptm_handle_error(err, "detect_standard_sub_time");
+    if (myrank == 0) {
+        printf("[Detect] sub_op_theoretical_ns=%.6f, stable=%s\n", sub_ns, is_stable?"yes":"no");
+    }
+    
+
+    /* Step 3: Run the timing error sensor */
     MPI_Barrier(MPI_COMM_WORLD);
     
     // Allocate arrays for timing measurements

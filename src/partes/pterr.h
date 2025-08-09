@@ -8,6 +8,7 @@ enum pterr {
     PTERR_TIMER_NEGATIVE = 1,
     PTERR_TIMER_OVERFLOW = 2,
     PTERR_EXIT_FLAG = 3,
+    PTERR_MALLOC_FAILED = 4
 };
 
 const char *get_pterr_str(enum pterr err);

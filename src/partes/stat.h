@@ -18,4 +18,7 @@
  */
 void calc_w(int64_t *tm_arr, uint64_t tm_len, int64_t *sim_cdf, int64_t *w_arr, double *wp_arr, double p_zcut);
 
+double stat_linreg_slope_u64(const uint64_t *x, const uint64_t *y, int n);
+double stat_relative_diff(double a, double b);
+
 #endif 

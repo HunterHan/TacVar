@@ -19,6 +19,8 @@ const char *get_pterr_str(enum pterr err) {
             return "Timer overflow detected";
         case PTERR_EXIT_FLAG:
             return "Exit flag detected";
+        case PTERR_MALLOC_FAILED:
+            return "Memory allocation failed";
         default:
             return "Unknown error";
     }

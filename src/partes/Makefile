@@ -2,78 +2,40 @@ CC = mpicc
 CFLAGS = -Wall -Wextra -std=c99 -O2
 LDFLAGS = -lm
 
-# Source files
-SRCDIR = .
+# Source directories
 KERNELDIR = kernels
 TIMERDIR = timers
 
-# Main source files
-MAIN_SRC = $(SRCDIR)/partes.c
-PARSE_SRC = $(SRCDIR)/parse_args.c
-STRESS_SRC = $(SRCDIR)/stress_timer.c
-PTERR_SRC = $(SRCDIR)/pterr.c
-STAT_SRC = $(SRCDIR)/stat.c
+# Core object files for partes
+CORE_OBJS = partes.o parse_args.o stress_timer.o pterr.o stat.o detect_std_time.o
 
-# Kernel source files
-KERNEL_SRCS = $(KERNELDIR)/none.c \
-               $(KERNELDIR)/triad.c \
-               $(KERNELDIR)/scale.c \
-               $(KERNELDIR)/copy.c \
-               $(KERNELDIR)/add.c \
-               $(KERNELDIR)/pow.c \
-               $(KERNELDIR)/dgemm.c \
-               $(KERNELDIR)/bcast.c
+# Kernel object files
+KERNEL_OBJS = $(KERNELDIR)/none.o $(KERNELDIR)/triad.o $(KERNELDIR)/scale.o \
+              $(KERNELDIR)/copy.o $(KERNELDIR)/add.o $(KERNELDIR)/pow.o \
+              $(KERNELDIR)/dgemm.o $(KERNELDIR)/bcast.o
 
-# Timer source files (if any)
-TIMER_SRCS = $(wildcard $(TIMERDIR)/*.c)
+# Timer object files
+TIMER_OBJS = $(wildcard $(TIMERDIR)/*.o)
 
-# All source files
-ALL_SRCS = $(MAIN_SRC) $(PARSE_SRC) $(STRESS_SRC) $(PTERR_SRC) $(STAT_SRC) $(KERNEL_SRCS) $(TIMER_SRCS)
+# All object files for partes
+PARTES_OBJS = $(CORE_OBJS) $(KERNEL_OBJS) $(TIMER_OBJS)
 
-# Object files
-OBJS = $(ALL_SRCS:.c=.o)
+# Object files for partes-fit
+FIT_OBJS = partes-fit.o pterr.o stat.o detect_std_time.o stress_timer.o
 
-# Target executable
-TARGET = partes
+# Targets
+all: partes.x partes-fit.x
 
-# Default target
-all: $(TARGET)
+partes.x: $(PARTES_OBJS)
+	$(CC) $(PARTES_OBJS) -o $@ $(LDFLAGS)
 
-# Link the executable
-$(TARGET): $(OBJS)
-	$(CC) $(OBJS) -o $(TARGET) $(LDFLAGS)
+partes-fit.x: $(FIT_OBJS)
+	$(CC) $(FIT_OBJS) -o $@ $(LDFLAGS)
 
-# Compile source files
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Clean up
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f *.o $(KERNELDIR)/*.o $(TIMERDIR)/*.o partes.x partes-fit.x
 
-# Install (optional)
-install: $(TARGET)
-	cp $(TARGET) /usr/local/bin/
-
-# Uninstall (optional)
-uninstall:
-	rm -f /usr/local/bin/$(TARGET)
-
-# Dependencies
-$(SRCDIR)/partes.o: $(SRCDIR)/partes.c $(SRCDIR)/partes_types.h $(SRCDIR)/pterr.h $(KERNELDIR)/kernels.h 
-$(SRCDIR)/parse_args.o: $(SRCDIR)/parse_args.c $(SRCDIR)/partes_types.h $(KERNELDIR)/kernels.h $(SRCDIR)/pterr.h
-$(SRCDIR)/stress_timer.o: $(SRCDIR)/stress_timer.c
-$(SRCDIR)/pterr.o: $(SRCDIR)/pterr.c $(SRCDIR)/pterr.h
-$(SRCDIR)/stat.o: $(SRCDIR)/stat.c 
-
-# Kernel dependencies
-$(KERNELDIR)/none.o: $(KERNELDIR)/none.c
-$(KERNELDIR)/triad.o: $(KERNELDIR)/triad.c
-$(KERNELDIR)/scale.o: $(KERNELDIR)/scale.c
-$(KERNELDIR)/copy.o: $(KERNELDIR)/copy.c
-$(KERNELDIR)/add.o: $(KERNELDIR)/add.c
-$(KERNELDIR)/pow.o: $(KERNELDIR)/pow.c
-$(KERNELDIR)/dgemm.o: $(KERNELDIR)/dgemm.c
-$(KERNELDIR)/bcast.o: $(KERNELDIR)/bcast.c
-
-.PHONY: all clean install uninstall
+.PHONY: all clean

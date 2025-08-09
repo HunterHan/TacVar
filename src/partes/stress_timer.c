@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <mpi.h>
 #include "pterr.h"
+#include "partes_types.h"
 
 /***
  * @param ntpint: The number of tests per interval
@@ -21,7 +22,7 @@
  * @return: The error code
  */
 int 
-stress_timer(int ntpint, int nint, int tint, int nwint, long long *tick, long long *ovh) 
+stress_timer(int ntpint, int nint, int tint, int nwint, pt_timer_info_t *timer_info) 
 {
     enum pterr ret = PTERR_SUCCESS;
     struct timespec tv;
@@ -29,8 +30,8 @@ stress_timer(int ntpint, int nint, int tint, int nwint, long long *tick, long lo
     uint64_t *raw = (uint64_t *)malloc(ntpint * sizeof(uint64_t));
     uint64_t *gap = (uint64_t *)malloc(ntpint * sizeof(uint64_t));
     
-    uint64_t min_overhead = UINT64_MAX;
-    uint64_t min_tick = UINT64_MAX;
+    long long min_overhead = INT64_MAX;
+    long long min_tick = INT64_MAX;
     
     // Loop through intervals
     for (int i = 0; i < nint; i++) {
@@ -64,8 +65,8 @@ stress_timer(int ntpint, int nint, int tint, int nwint, long long *tick, long lo
         sleep(tint);
     }
     
-    *ovh = min_overhead;
-    *tick = min_tick;
+    timer_info->ovh = min_overhead;
+    timer_info->tick = (unsigned long long)min_tick;
     free(raw);
     free(gap);
 
