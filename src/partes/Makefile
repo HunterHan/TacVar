@@ -32,10 +32,18 @@ partes.x: $(PARTES_OBJS)
 partes-fit.x: $(FIT_OBJS)
 	$(CC) $(FIT_OBJS) -o $@ $(LDFLAGS)
 
+tools:
+	$(MAKE) -C tools
+
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
 	rm -f *.o $(KERNELDIR)/*.o $(TIMERDIR)/*.o partes.x partes-fit.x
 
-.PHONY: all clean
+cleanall: clean
+	$(MAKE) -C tools clean
+	rm *.csv
+	rm utils/*.csv
+
+.PHONY: all clean tools
