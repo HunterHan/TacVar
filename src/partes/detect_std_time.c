@@ -10,6 +10,8 @@
 #include "pterr.h"
 #include "partes_types.h"
 
+#define MET_REPEAT 10
+
 static inline int64_t _run_sub(uint64_t nsub);
 
 /**
@@ -18,47 +20,54 @@ static inline int64_t _run_sub(uint64_t nsub);
 static inline int64_t 
 _run_sub(uint64_t nsub)
 {
-    register uint64_t ra = nsub;
-    register uint64_t rb = 1;
     struct timespec tv;
     int64_t ns0, ns1;
+    uint64_t t[MET_REPEAT];
 
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
 
-    clock_gettime(CLOCK_MONOTONIC, &tv);
-    ns0 = (int64_t)tv.tv_sec * 1000000000ULL + (int64_t)tv.tv_nsec;
-
+    for (int i = 0; i < MET_REPEAT; i++) {
+        register uint64_t ra = nsub;
+        register uint64_t rb = 1;
+        clock_gettime(CLOCK_MONOTONIC, &tv);
+        ns0 = (int64_t)tv.tv_sec * 1000000000ULL + (int64_t)tv.tv_nsec;
 #if defined(__x86_64__)
-    __asm__ __volatile__(
-        "1:\n\t"
-        "cmp $0, %0\n\t"
-        "je 2f\n\t"
-        "sub %1, %0\n\t"
-        "jmp 1b\n\t"
-        "2:\n\t"
-        : "+r"(ra)
-        : "r"(rb)
-        : "cc");
+        __asm__ __volatile__(
+            "1:\n\t"
+            "cmp $0, %0\n\t"
+            "je 2f\n\t"
+            "sub %1, %0\n\t"
+            "jmp 1b\n\t"
+            "2:\n\t"
+            : "+r"(ra)
+            : "r"(rb)
+            : "cc");
 #elif defined(__aarch64__)
-    __asm__ __volatile__(
-        "1:\n\t"
-        "cmp %0, #0\n\t"
-        "beq 2f\n\t"
-        "sub %0, %0, %1\n\t"
-        "b 1b\n\t"
-        "2:\n\t"
-        : "+r"(ra)
-        : "r"(rb)
-        : "cc");
+        __asm__ __volatile__(
+            "1:\n\t"
+            "cmp %0, #0\n\t"
+            "beq 2f\n\t"
+            "sub %0, %0, %1\n\t"
+            "b 1b\n\t"
+            "2:\n\t"
+            : "+r"(ra)
+            : "r"(rb)
+            : "cc");
 #else
-    while (ra) { ra -= rb; }
+        while (ra) { ra -= rb; }
 #endif
 
-    clock_gettime(CLOCK_MONOTONIC, &tv);
-    ns1 = (int64_t)tv.tv_sec * 1000000000ULL + (int64_t)tv.tv_nsec;
+        clock_gettime(CLOCK_MONOTONIC, &tv);
+        ns1 = (int64_t)tv.tv_sec * 1000000000ULL + (int64_t)tv.tv_nsec;
+        t[i] = ns1 - ns0;
+        // printf("%"PRId64",%"PRId64"\n", ns0, ns1);
+    }
+    // for (int i = 0; i < MET_REPEAT; i++) {
+    //     printf("t[%d]=%" PRId64 " ns\n", i, t[i]);
+    // }
 
-    return (int64_t)(ns1 - ns0);
+    return (int64_t)(t[0]);
 }
 
 /*
@@ -68,11 +77,11 @@ _run_sub(uint64_t nsub)
 int
 fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t *gauge_info)
 {
-    uint64_t upper_hz = UPPER_HZ;
-    uint64_t lower_hz = LOWER_HZ;
-    uint64_t dt = timer_info->tick; // dx=10ticks
+    uint64_t hi_hz = MAX_TRY_HZ;
+    uint64_t lo_hz = MIN_TRY_HZ;
+    uint64_t dt = timer_info->tick * 10; // dx=10ticks
     uint64_t *pmet = NULL;
-    uint64_t xlen = NUM_IGNORE_TIMING + 1000;
+    uint64_t xlen = NUM_IGNORE_TIMING + 10;
     int64_t delta, delta2, delta2_old = INT64_MAX;  // Gap between measured and actual time gap of dx.
     uint64_t f, dx, nsub_min;
     uint64_t conv_me = 0, conv_other = 0, conv_target = 0, conv_now = 0;
@@ -100,7 +109,7 @@ fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t
     MPI_Barrier(MPI_COMM_WORLD);
     while (conv_now != conv_target) {
         if (conv_me == 0) {
-            f = 0.5 * (upper_hz + lower_hz);
+            f = 0.5 * (hi_hz + lo_hz);
             double nop_per_ns = f * gauge_info->cy_per_op / 1e9;
             dx = (uint64_t)(nop_per_ns * dt);
             nsub_min = (timer_info->ovh + dt * NUM_IGNORE_TIMING) * (f / 1e9) * gauge_info->cy_per_op;
@@ -110,22 +119,31 @@ fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t
             printf("Rank %d: Trying frequency %" PRIu64 " Hz, dx=%" PRIu64 " ticks, dt=%" PRIu64 " ns, nsub_min=%" PRIu64 "\n", myrank, f, dx, dt, nsub_min);
         }
         for (uint64_t i = 0; i < xlen; i++) {
-            pmet[i] = _run_sub(nsub_min + i * dx);
+            _run_sub(nsub_min + i * dx);
+            for (int j = 0; j < MET_REPEAT; j++) {
+                pmet[i] += _run_sub(nsub_min + i * dx);
+            }
+            pmet[i] /= MET_REPEAT;
         }
         for (uint64_t i = NUM_IGNORE_TIMING; i < xlen; i++) {
             delta += pmet[i] - pmet[i-1] - dt;
             delta2 += (pmet[i] - pmet[i-1] - dt) * (pmet[i] - pmet[i-1] - dt);
         }
-        printf("Rank %d: delta=%" PRId64 ", delta2=%" PRId64 "\n", myrank, delta, delta2);
-        if (delta < 0) {
-            lower_hz = f;
-        } else if (delta > 0) {
-            upper_hz = f;
-        } else if (delta == 0 || upper_hz <= lower_hz) {
+
+        if (delta == 0 || hi_hz <= lo_hz) {
             gauge_info->core_freq = f;
             gauge_info->wtime_per_op = 1.0e9 / f;
             gauge_info->nop_per_tick = (uint64_t)(f * timer_info->tick / 1e9 / gauge_info->cy_per_op);
             conv_me = 1;
+        } else if (delta < 0) {
+            lo_hz = f;
+        } else if (delta > 0) {
+            hi_hz = f;
+        }
+        if (conv_me != 1) {
+            printf("Rank %d: delta=%" PRId64 ", delta2=%" PRId64 
+                ",hi_hz=%" PRId64 "lo_hz=%" PRId64 "\n", 
+                myrank, delta, delta2, hi_hz, lo_hz);
         }
         delta2_old = delta2;
         if (myrank == 0) {
@@ -135,17 +153,7 @@ fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t
                 conv_now |= conv_other << r;
             }
             MPI_Bcast(&conv_now, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
-            printf("Rank %d: conv_now=", myrank);
-            for (int bit = 63; bit >= 0; bit--) {
-                printf("%d", (conv_now >> bit) & 1);
-            }
-            printf(", conv_target=");
-            for (int bit = 63; bit >= 0; bit--) {
-                printf("%d", (conv_target >> bit) & 1);
-            }
-            printf("\n");
-        }
-        else {
+        } else {
             MPI_Send(&conv_me, 1, MPI_UINT64_T, 0, myrank, MPI_COMM_WORLD);
             MPI_Bcast(&conv_now, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
         }

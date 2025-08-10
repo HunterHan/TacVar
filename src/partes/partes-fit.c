@@ -76,14 +76,40 @@ main(int argc, char *argv[])
         return err;
     }
 
-    pt_gauge_info_t *p_gauge_info_all = (pt_gauge_info_t *)malloc(nrank * sizeof(pt_gauge_info_t));
-    MPI_Gather(&gauge_info, 1, MPI_LONG_LONG, p_gauge_info_all, 1, MPI_LONG_LONG, 0, MPI_COMM_WORLD);
+    /* Gather gauge info */
+    double *wtime_per_op_all = NULL;
+    int64_t *nop_per_tick_all = NULL;
+    int64_t *core_freq_all = NULL;
+    
+    if (myrank == 0) {
+        wtime_per_op_all = (double *)malloc(nrank * sizeof(double));
+        nop_per_tick_all = (int64_t *)malloc(nrank * sizeof(int64_t));
+        core_freq_all = (int64_t *)malloc(nrank * sizeof(int64_t));
+        if (!wtime_per_op_all || !nop_per_tick_all || !core_freq_all) {
+            fprintf(stderr, "[Error] malloc failed for gauge info arrays\n");
+            if (wtime_per_op_all) free(wtime_per_op_all);
+            if (nop_per_tick_all) free(nop_per_tick_all);
+            if (core_freq_all) free(core_freq_all);
+            MPI_Finalize();
+            return 1;
+        }
+    }
+    
+    MPI_Gather(&gauge_info.wtime_per_op, 1, MPI_DOUBLE, wtime_per_op_all, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Gather(&gauge_info.nop_per_tick, 1, MPI_LONG_LONG, nop_per_tick_all, 1, MPI_LONG_LONG, 0, MPI_COMM_WORLD);
+    MPI_Gather(&gauge_info.core_freq, 1, MPI_LONG_LONG, core_freq_all, 1, MPI_LONG_LONG, 0, MPI_COMM_WORLD);
+    
     if (myrank == 0) {
         for (int i = 0; i < nrank; i++) {
-            printf("rank %d: core_freq=%" PRIu64 " Hz, wtime_per_op=%.6f, nop_per_tick=%lld\n", i, p_gauge_info_all[i].core_freq, p_gauge_info_all[i].wtime_per_op, p_gauge_info_all[i].nop_per_tick);
-            free(p_gauge_info_all);
-            p_gauge_info_all = NULL;
+            printf("rank %d: core_freq=%" PRId64 " Hz, wtime_per_op=%.6f, nop_per_tick=%" PRId64 "\n", 
+                   i, core_freq_all[i], wtime_per_op_all[i], nop_per_tick_all[i]);
         }
+        free(wtime_per_op_all);
+        free(nop_per_tick_all);
+        free(core_freq_all);
+        wtime_per_op_all = NULL;
+        nop_per_tick_all = NULL;
+        core_freq_all = NULL;
     }
     
     /* Print results on rank 0 */
@@ -92,6 +118,7 @@ main(int argc, char *argv[])
         printf("nop_per_tick=%lld\n", gauge_info.nop_per_tick);
     }
     
+    MPI_Barrier(MPI_COMM_WORLD);
     MPI_Finalize();
     return 0;
 }

@@ -9,8 +9,8 @@
 
 #define PT_CALL_ID_FRONT 0
 #define PT_CALL_ID_REAR  1
-#define UPPER_HZ 10000000000ULL // 10GHz
-#define LOWER_HZ 100000000ULL   // 100MHz
+#define MAX_TRY_HZ 10000000000ULL // 10GHz
+#define MIN_TRY_HZ 100000000ULL   // 100MHz
 #define NUM_IGNORE_TIMING 2 // Ignore the first 2 results by default
 
 typedef struct {
