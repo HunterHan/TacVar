@@ -23,67 +23,62 @@ _run_sub(uint64_t nsub)
 {
     struct timespec tv;
     int64_t ns0, ns1;
-    uint64_t t[MET_REPEAT];
 
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
 
-    for (int i = 0; i < MET_REPEAT; i++) {
-        register uint64_t ra = nsub;
-        register uint64_t rb = 1;
-        clock_gettime(CLOCK_MONOTONIC, &tv);
-        ns0 = (int64_t)tv.tv_sec * 1000000000ULL + (int64_t)tv.tv_nsec;
+    register uint64_t ra = nsub;
+    register uint64_t rb = 1;
+    clock_gettime(CLOCK_MONOTONIC, &tv);
+    ns0 = (int64_t)tv.tv_sec * 1000000000ULL + (int64_t)tv.tv_nsec;
 #if defined(__x86_64__)
-        __asm__ __volatile__(
-            "1:\n\t"
-            "cmp $0, %0\n\t"
-            "je 2f\n\t"
-            "sub %1, %0\n\t"
-            "jmp 1b\n\t"
-            "2:\n\t"
-            : "+r"(ra)
-            : "r"(rb)
-            : "cc");
+    __asm__ __volatile__(
+        "1:\n\t"
+        "cmp $0, %0\n\t"
+        "je 2f\n\t"
+        "sub %1, %0\n\t"
+        "jmp 1b\n\t"
+        "2:\n\t"
+        : "+r"(ra)
+        : "r"(rb)
+        : "cc");
 #elif defined(__aarch64__)
-        __asm__ __volatile__(
-            "1:\n\t"
-            "cmp %0, #0\n\t"
-            "beq 2f\n\t"
-            "sub %0, %0, %1\n\t"
-            "b 1b\n\t"
-            "2:\n\t"
-            : "+r"(ra)
-            : "r"(rb)
-            : "cc");
+    __asm__ __volatile__(
+        "1:\n\t"
+        "cmp %0, #0\n\t"
+        "beq 2f\n\t"
+        "sub %0, %0, %1\n\t"
+        "b 1b\n\t"
+        "2:\n\t"
+        : "+r"(ra)
+        : "r"(rb)
+        : "cc");
 #else
-        while (ra) { ra -= rb; }
+    while (ra) { ra -= rb; }
 #endif
 
-        clock_gettime(CLOCK_MONOTONIC, &tv);
-        ns1 = (int64_t)tv.tv_sec * 1000000000ULL + (int64_t)tv.tv_nsec;
-        t[i] = ns1 - ns0;
-        // printf("%"PRId64",%"PRId64"\n", ns0, ns1);
-    }
-    // for (int i = 0; i < MET_REPEAT; i++) {
-    //     printf("t[%d]=%" PRId64 " ns\n", i, t[i]);
-    // }
-
-    return (int64_t)(t[0]);
+    clock_gettime(CLOCK_MONOTONIC, &tv);
+    ns1 = (int64_t)tv.tv_sec * 1000000000ULL + (int64_t)tv.tv_nsec;
+    return ns1 - ns0;
 }
 
-/*
- * Exponential guessing to estimate theoretical time per sub-op
- * Returns t_guess in ns/op, or 0.0 on failure
+/** 
+ * @brief Exponential guessing to estimate theoretical time per sub-op
+ * @param myrank: my rank
+ * @param nrank: number of ranks
+ * @param gpt_guess: returned guess gauges/tick
+ * @param timer_info: timer info
+ * @return 0 on success, 1 on failure
  */
 int
-exponential_guessing(int myrank, uint64_t *t_guess_ns, uint64_t tick_ns)
+exponential_guessing(int myrank, int nrank, pt_timer_info_t *timer_info, double *gpt_guess)
 {
     const int max_exp = 10; // nsub_arr=[1,10,...,10^10]
-    uint64_t nsub_arr[11], t_met_avg[11];
-    double last_var = DBL_MAX, var = 0.0;
-    int valid_steps = 0;
-    int err;
-    
+    uint64_t nsub_arr[11], tmet_avg[11];
+    int err = PTERR_SUCCESS, break_flag = 0;
+    int all_break_flags[nrank];
+    int global_break_flag = 0;
+
     // Initialize nsub_arr = [1, 10, 100, ..., 10^10]
     nsub_arr[0] = 1;
     for (int i = 1; i <= max_exp; i++) {
@@ -92,66 +87,48 @@ exponential_guessing(int myrank, uint64_t *t_guess_ns, uint64_t tick_ns)
     
     for (int step = 0; step <= max_exp; step++) {
         if (myrank == 0) {
-            printf("Rank %d: nsub=%d\n", myrank, nsub_arr[step]);
+            printf("Rank %d: nsub=%" PRIu64 "\n", myrank, nsub_arr[step]);
         }
 
-        int err;
-        uint64_t nsub = nsub_arr[step], met_arr[PT_VAR_MAX_NSTEP], sum = 0;
-        t_met_avg[step] = 0;
+        uint64_t nsub = nsub_arr[step], sum = 0;
+        tmet_avg[step] = 0;
 
         /* Run PT_VAR_START_NSTEP steps */
-        for (int i = 0; i < PT_VAR_START_NSTEP; i++) {
-            met_arr[i] = _run_sub(nsub);
-            sum += met_arr[i];
+        for (int i = 0; i < PT_VAR_MAX_NSTEP; i++) {
+            sum += _run_sub(nsub) / timer_info->tick;
         }
-        err = calc_sample_var_1d_u64(met_arr, PT_VAR_START_NSTEP, &last_var);
-        if (err != PTERR_SUCCESS) {
-            return err;
+        tmet_avg[step] = sum / PT_VAR_MAX_NSTEP;
+        if (myrank == 0) {
+            printf("Rank %d: tmet_avg=%" PRIu64 " ticks\n", myrank, tmet_avg[step]);
         }
-
-        for (int i = 0; i < PT_VAR_MAX_NSTEP - PT_VAR_START_NSTEP; i ++) {
-            met_arr[i + PT_VAR_START_NSTEP] = _run_sub(nsub);
-            sum += met_arr[i + PT_VAR_START_NSTEP];
-            err = calc_sample_var_1d_u64(met_arr, i + PT_VAR_START_NSTEP + 1, &var);
-            if (myrank == 0) {
-                printf("Rank %d: step %d, i=%d, var=%.6e\n", myrank, step, i, var);
-            }
-            if (err != PTERR_SUCCESS) {
-                return err;
-            }
-            if (fabs((var - last_var) / last_var) < PT_THRS_GUESS_VAR || 
-                i >= PT_VAR_MAX_NSTEP - PT_VAR_START_NSTEP - 1) {
-                t_met_avg[step] = sum / (i + PT_VAR_START_NSTEP + 1);
-                valid_steps = step;
-                break;
-            }
-            last_var = var;
+        if (tmet_avg[step] * 10 * timer_info->tick > PT_THRES_GUESS_NSUB_TIME && break_flag == 0) {
+            break_flag = 1;
         }
-
-        if (t_met_avg[step] * 10 > PT_THRES_GUESS_NSUB_TIME) { 
+        
+        MPI_Gather(&break_flag, 1, MPI_INT, all_break_flags, 1, MPI_INT, 0, MPI_COMM_WORLD);
+        if (myrank == 0) {
+            for (int i = 0; i < nrank; i++) {
+                if (all_break_flags[i] == 1) {
+                    global_break_flag = 1;
+                    break;
+                }
+            }
+        }
+        
+        
+        MPI_Bcast(&global_break_flag, 1, MPI_INT, 0, MPI_COMM_WORLD);
+        
+        if (global_break_flag == 1) {
+            if (step >= 1) {
+                *gpt_guess = ((double)nsub_arr[step] - (double)nsub_arr[step-1]) /
+                              ((double)tmet_avg[step] - (double)tmet_avg[step-1]);
+            } else {
+                *gpt_guess = (double)nsub_arr[step] / ((double)tmet_avg[step] - (double)timer_info->ovh);
+            }
             break;
         }
     }
-    
-    // Calculate t_guess using last two valid steps
-    if (valid_steps >= 2) {
-        uint64_t nsub_diff = nsub_arr[valid_steps] - nsub_arr[valid_steps - 1];
-        uint64_t time_diff = t_met_avg[valid_steps] - t_met_avg[valid_steps - 1];
-        
-        if (time_diff > 0) {
-            *t_guess_ns = nsub_diff / time_diff; // ns per operation
-            printf("Rank %d: t_guess = %"PRIu64" ns/op, var = %.6e\n", myrank, *t_guess_ns, var);
-            return PTERR_SUCCESS;
-        } else {
-            err = PTERR_TIMER_NEGATIVE;
-        }
-    }
-    
-    if (myrank == 0) {
-        printf("  Exponential guessing failed to converge\n");
-    }
-    err = PTERR_TIMER_OVERFLOW;
-    *t_guess_ns = 0;
+
     return err;
 }
 
@@ -160,49 +137,35 @@ exponential_guessing(int myrank, uint64_t *t_guess_ns, uint64_t tick_ns)
  * On rank 0 prints results; returns 0 on success.
  */
 int
-fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t *gauge_info, uint64_t t_guess)
+fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t *gauge_info, double gpt_guess)
 {
-    uint64_t hi_hz, lo_hz;
-    
-    // Use t_guess to set initial bounds if available
-    if (t_guess > 0) {
-        uint64_t freq_guess = t_guess; // Hz
-        lo_hz = freq_guess / 2;  // 0.5 * t_guess
-        hi_hz = freq_guess * 2;  // 2.0 * t_guess
-        
-        // Clamp to reasonable bounds
-        if (lo_hz < MIN_TRY_HZ) lo_hz = MIN_TRY_HZ;
-        if (hi_hz > MAX_TRY_HZ) hi_hz = MAX_TRY_HZ;
-        
-        if (myrank == 0) {
-            printf("Using t_guess=%" PRIu64 " ns/op, freq_guess=%" PRIu64 " Hz, lo_hz=%" PRIu64 ", hi_hz=%" PRIu64 "\n",
-                   t_guess, freq_guess, lo_hz, hi_hz);
-        }
-    } else {
-        hi_hz = MAX_TRY_HZ;
-        lo_hz = MIN_TRY_HZ;
-        if (myrank == 0) {
-            printf("No t_guess available, using default bounds: lo_hz=%" PRIu64 ", hi_hz=%" PRIu64 "\n",
-                   lo_hz, hi_hz);
-        }
-    }
-    uint64_t dt = timer_info->tick * 10; // dx=10ticks
+    double hi_gpt, lo_gpt, lo_gpt_bound, hi_gpt_bound, gpt;
+    uint64_t dt = 10; // dx=10ticks
     uint64_t *pmet = NULL;
     uint64_t xlen = NUM_IGNORE_TIMING + 10;
     int64_t delta, delta2;  // Gap between measured and actual time gap of dx.
-    uint64_t f, dx, nsub_min;
+    uint64_t dx, nsub_min;
     uint64_t conv_me = 0, conv_other = 0, conv_target = 0, conv_now = 0;
 
+  
+    // Use t_guess to set initial bounds if available
+    gpt = gpt_guess;
+    lo_gpt = gpt_guess / 2;  // 0.5 * t_guess
+    hi_gpt = gpt_guess * 2;  // 2.0 * t_guess
+    lo_gpt_bound = timer_info->tick * ((double)MIN_TRY_HZ / gauge_info->cy_per_op / (double)1e9);
+    hi_gpt_bound = timer_info->tick * ((double)MAX_TRY_HZ / gauge_info->cy_per_op / (double)1e9);
+    
+    // Clamp to reasonable bounds
+    // gauge_per_ns = freq_hz / 1e9
+    lo_gpt = lo_gpt < lo_gpt_bound ? lo_gpt_bound : lo_gpt;
+    hi_gpt = hi_gpt > hi_gpt_bound ? hi_gpt_bound : hi_gpt;
     pmet = (uint64_t *)malloc(xlen * sizeof(uint64_t));
     if (pmet == NULL) {
         return PTERR_MALLOC_FAILED;
     }
 
-    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-
     gauge_info->wtime_per_op = 0;
-    gauge_info->nop_per_tick = 0;
-    gauge_info->core_freq = 0;
+    gauge_info->gpt = 0;
 
     // Try f to minimize:
     // delta = sigma_(i=NUM_IGNORE_TIMING+1)^(xlen-1) (pmet[i] - pmet[i-1] - dt)
@@ -216,14 +179,12 @@ fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t
     MPI_Barrier(MPI_COMM_WORLD);
     while (conv_now != conv_target) {
         if (conv_me == 0) {
-            f = 0.5 * (hi_hz + lo_hz);
-            double nop_per_ns = f * gauge_info->cy_per_op / 1e9;
-            dx = (uint64_t)(nop_per_ns * dt);
-            nsub_min = (timer_info->ovh + dt * NUM_IGNORE_TIMING) * (f / 1e9) * gauge_info->cy_per_op;
+            dx = (uint64_t)(gpt * dt);
+            nsub_min = (uint64_t)(((double)timer_info->ovh / (double)timer_info->tick) + 1 + dt) * gpt;
 
             delta = 0;
             delta2 = 0;
-            printf("Rank %d: Trying frequency %" PRIu64 " Hz, dx=%" PRIu64 " ticks, dt=%" PRIu64 " ns, nsub_min=%" PRIu64 "\n", myrank, f, dx, dt, nsub_min);
+            printf("Rank %d: Trying G/tick %f" " Hz, dx=%" PRIu64 ", dt=%" PRIu64 " ticks, nsub_min=%" PRIu64 "\n", myrank, gpt, dx, dt, nsub_min);
         }
         for (uint64_t i = 0; i < xlen; i++) {
             _run_sub(nsub_min + i * dx);
@@ -233,24 +194,27 @@ fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t
             pmet[i] /= MET_REPEAT;
         }
         for (uint64_t i = NUM_IGNORE_TIMING; i < xlen; i++) {
-            delta += pmet[i] - pmet[i-1] - dt;
-            delta2 += (pmet[i] - pmet[i-1] - dt) * (pmet[i] - pmet[i-1] - dt);
+            delta += (pmet[i] - pmet[i-1]) / timer_info->tick - dt;
+            if (delta > 1000) {
+                printf("Rank %d: delta=%" PRId64 ", pmet[i]=%" PRIu64 ", pmet[i-1]=%" PRIu64 "\n", myrank, delta, pmet[i], pmet[i-1]);
+            }
+            delta2 += ((pmet[i] - pmet[i-1]) / timer_info->tick - dt) * ((pmet[i] - pmet[i-1]) / timer_info->tick - dt);
         }
 
-        if (delta == 0 || hi_hz <= lo_hz) {
-            gauge_info->core_freq = f;
-            gauge_info->wtime_per_op = 1.0e9 / f;
-            gauge_info->nop_per_tick = (uint64_t)(f * timer_info->tick / 1e9 / gauge_info->cy_per_op);
+        if (delta == 0 || fabs(hi_gpt - lo_gpt) < 0.01*gpt) {
+            gauge_info->gpt = gpt;
+            gauge_info->wtime_per_op = timer_info->tick / gpt;
             conv_me = 1;
         } else if (delta < 0) {
-            lo_hz = f;
+            lo_gpt = gpt;
         } else if (delta > 0) {
-            hi_hz = f;
+            hi_gpt = gpt;
         }
         if (conv_me != 1) {
-            printf("Rank %d: delta=%" PRId64 ", delta2=%" PRId64 
-                ",hi_hz=%" PRId64 "lo_hz=%" PRId64 "\n", 
-                myrank, delta, delta2, hi_hz, lo_hz);
+            gpt = 0.5 * (hi_gpt + lo_gpt);
+            printf("Rank %d: delta=%" PRId64 ", delta2=%" PRId64 ","
+                "Next gpt=%.6f, hi_gpt=%.6f, lo_gpt=%.6f\n", 
+                myrank, delta, delta2, gpt, hi_gpt, lo_gpt);
         }
         if (myrank == 0) {
             conv_now |= conv_me;

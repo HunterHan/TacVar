@@ -68,8 +68,7 @@ typedef struct {
 typedef struct {
     uint64_t cy_per_op; // Cycles per operation
     double wtime_per_op; // Wall time per operation
-    int64_t nop_per_tick; // The number of operations per tick
-    int64_t core_freq; // The frequency of the core when running the gauge kernel
+    double gpt; // Gauges per tick
 } pt_gauge_info_t;
 
 
