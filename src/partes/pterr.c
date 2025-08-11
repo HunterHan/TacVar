@@ -21,6 +21,8 @@ const char *get_pterr_str(enum pterr err) {
             return "Exit flag detected";
         case PTERR_MALLOC_FAILED:
             return "Memory allocation failed";
+        case PTERR_INVALID_ARGUMENT:
+            return "Invalid argument";
         default:
             return "Unknown error";
     }

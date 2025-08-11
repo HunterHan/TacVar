@@ -65,6 +65,7 @@ main(int argc, char *argv[])
             printf("rank %d: tick=%lld, ovh=%lld\n", i, ptick_all[i], povh_all[i]);
         }
     }
+    /* Exponential guessing */
 
     /* Detect standard sub time */
     // TODO: what if cyc_per_op != 1?
