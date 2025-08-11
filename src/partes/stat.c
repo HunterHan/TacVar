@@ -8,13 +8,18 @@
 #include <math.h>
 #include "pterr.h"
 
-int calc_sample_var_1d_fp64(double *arr, size_t n, double *var);
-int calc_sample_var_1d_i64(int64_t *arr, size_t n, int64_t *var);
-int calc_sample_var_1d_u64(uint64_t *arr, size_t n, uint64_t *var);
-int calc_sample_var_2d_fp64(double **arr, size_t n1d, size_t n2d, int direction, double **var);
-int calc_sample_var_2d_i64(int64_t **arr, size_t n1d, size_t n2d, int direction, int64_t **var);
-int calc_sample_var_2d_u64(uint64_t **arr, size_t n1d, size_t n2d, int direction, uint64_t **var);
+void calc_w(int64_t *tm_arr, uint64_t tm_len, int64_t *sim_cdf, int64_t *w_arr, double *wp_arr, double p_zcut);
 
+// Variance calculation functions - all return double variance
+int calc_sample_var_1d_fp64(double *arr, size_t n, double *var);
+int calc_sample_var_1d_i64(int64_t *arr, size_t n, double *var);
+int calc_sample_var_1d_u64(uint64_t *arr, size_t n, double *var);
+int calc_sample_var_2d_fp64(double **arr, size_t n1d, size_t n2d, int direction, double **var);
+int calc_sample_var_2d_i64(int64_t **arr, size_t n1d, size_t n2d, int direction, double **var);
+int calc_sample_var_2d_u64(uint64_t **arr, size_t n1d, size_t n2d, int direction, double **var);
+
+double stat_linreg_slope_u64(const uint64_t *x, const uint64_t *y, int n);
+double stat_relative_diff(double a, double b);
 
 /**
  * @brief Calculate Wasserstein distance between measured and theoretical timing distributions
@@ -67,36 +72,38 @@ calc_sample_var_1d_fp64(double *arr, size_t n, double *var)
 }
 
 int
-calc_sample_var_1d_i64(int64_t *arr, size_t n, int64_t *var)
+calc_sample_var_1d_i64(int64_t *arr, size_t n, double *var)
 {
     if (n <= 1) return PTERR_INVALID_ARGUMENT;
-    int64_t mean = 0;
-    *var = 0;
+    double mean = 0.0;
+    *var = 0.0;
     for (size_t i = 0; i < n; i++) {
-        mean += arr[i];
+        mean += (double)arr[i];
     }
-    mean /= (int64_t)n;
+    mean /= (double)n;
     for (size_t i = 0; i < n; i++) {
-        *var += (arr[i] - mean) * (arr[i] - mean);
+        double diff = (double)arr[i] - mean;
+        *var += diff * diff;
     }
-    *var = *var / (int64_t)(n - 1);
+    *var = *var / (double)(n - 1);
     return 0;
 }
 
 int
-calc_sample_var_1d_u64(uint64_t *arr, size_t n, uint64_t *var)
+calc_sample_var_1d_u64(uint64_t *arr, size_t n, double *var)
 {
     if (n <= 1) return PTERR_INVALID_ARGUMENT;
-    uint64_t mean = 0;
-    *var = 0;
+    double mean = 0.0;
+    *var = 0.0;
     for (size_t i = 0; i < n; i++) {
-        mean += arr[i];
+        mean += (double)arr[i];
     }
-    mean /= (uint64_t)n;
+    mean /= (double)n;
     for (size_t i = 0; i < n; i++) {
-        *var += (arr[i] - mean) * (arr[i] - mean);
+        double diff = (double)arr[i] - mean;
+        *var += diff * diff;
     }
-    *var = *var / (uint64_t)(n - 1);
+    *var = *var / (double)(n - 1);
     return 0;
 }
 
@@ -132,7 +139,7 @@ calc_sample_var_2d_fp64(double **arr, size_t n1d, size_t n2d, int direction, dou
 }
 
 int
-calc_sample_var_2d_i64(int64_t **arr, size_t n1d, size_t n2d, int direction, int64_t **var)
+calc_sample_var_2d_i64(int64_t **arr, size_t n1d, size_t n2d, int direction, double **var)
 {
     if (direction == 0) {
         // Calculate variance across the whole 2D array
@@ -163,7 +170,7 @@ calc_sample_var_2d_i64(int64_t **arr, size_t n1d, size_t n2d, int direction, int
 }
 
 int
-calc_sample_var_2d_u64(uint64_t **arr, size_t n1d, size_t n2d, int direction, uint64_t **var)
+calc_sample_var_2d_u64(uint64_t **arr, size_t n1d, size_t n2d, int direction, double **var)
 {
     if (direction == 0) {
         // Calculate variance across the whole 2D array

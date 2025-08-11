@@ -9,8 +9,9 @@
 #include "pterr.h"
 #include "partes_types.h"
 
-extern int fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t *gauge_info);
+extern int fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t *gauge_info, uint64_t t_guess);
 extern int stress_timer(int ntest, int nwait, int isroot, int isverb, pt_timer_info_t *timer_info);
+extern int exponential_guessing(int myrank, uint64_t *t_guess_ns, uint64_t tick_ns);
 
 #define _ptm_handle_error(err, msg) do { \
     if (err != 0) { \
@@ -65,14 +66,26 @@ main(int argc, char *argv[])
             printf("rank %d: tick=%lld, ovh=%lld\n", i, ptick_all[i], povh_all[i]);
         }
     }
+    
     /* Exponential guessing */
+    if (myrank == 0) {
+        printf("=== Exponential Guessing ===\n");
+    }
+    uint64_t t_guess = 0;
+    err = exponential_guessing(myrank, &t_guess, timer_info.tick);
+    if (err != PTERR_SUCCESS) {
+        fprintf(stderr, "[Error] Rank %d: exponential_guessing failed: %d\n", myrank, err);
+        MPI_Finalize();
+        return err;
+    }
+
 
     /* Detect standard sub time */
     // TODO: what if cyc_per_op != 1?
     gauge_info.cy_per_op = 1;
-    err = fit_sub_time(myrank, nrank, &timer_info, &gauge_info);
+    err = fit_sub_time(myrank, nrank, &timer_info, &gauge_info, t_guess);
     if (err != PTERR_SUCCESS) {
-        fprintf(stderr, "[Error] Rank %d: detect_standard_sub_time failed: %d\n", myrank, err);
+        fprintf(stderr, "[Error] Rank %d: fit_sub_time failed: %d\n", myrank, err);
         MPI_Finalize();
         return err;
     }

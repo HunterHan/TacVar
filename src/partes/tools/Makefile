@@ -9,7 +9,7 @@ run_nsub_mpi.x: run_nsub_mpi.o
 	$(CC) run_nsub_mpi.o -o $@ $(LDFLAGS)
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -I.. -c $< -o $@
 
 clean:
 	rm -f *.o *.x
