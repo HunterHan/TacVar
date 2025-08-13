@@ -74,7 +74,7 @@ int
 exponential_guessing(int myrank, int nrank, pt_timer_info_t *timer_info, double *gpt_guess)
 {
     const int max_exp = 10; // nsub_arr=[1,10,...,10^10]
-    uint64_t nsub_arr[11], tmet_avg[11];
+    uint64_t nsub_arr[11], tmet_arr[11];
     int err = PTERR_SUCCESS, break_flag = 0;
     int all_break_flags[nrank];
     int global_break_flag = 0;
@@ -90,18 +90,19 @@ exponential_guessing(int myrank, int nrank, pt_timer_info_t *timer_info, double 
             printf("Rank %d: nsub=%" PRIu64 "\n", myrank, nsub_arr[step]);
         }
 
-        uint64_t nsub = nsub_arr[step], sum = 0;
-        tmet_avg[step] = 0;
+        uint64_t nsub = nsub_arr[step], tmet, tmet_min = UINT64_MAX;
+        tmet_arr[step] = 0;
 
         /* Run PT_VAR_START_NSTEP steps */
         for (int i = 0; i < PT_VAR_MAX_NSTEP; i++) {
-            sum += _run_sub(nsub) / timer_info->tick;
+            tmet = _run_sub(nsub) / timer_info->tick;
+            tmet_min = tmet < tmet_min ? tmet : tmet_min;
         }
-        tmet_avg[step] = sum / PT_VAR_MAX_NSTEP;
+        tmet_arr[step] = tmet_min;
         if (myrank == 0) {
-            printf("Rank %d: tmet_avg=%" PRIu64 " ticks\n", myrank, tmet_avg[step]);
+            printf("Rank %d: tmet_min=%" PRIu64 " ticks\n", myrank, tmet_arr[step]);
         }
-        if (tmet_avg[step] * 10 * timer_info->tick > PT_THRES_GUESS_NSUB_TIME && break_flag == 0) {
+        if (tmet_arr[step] * 10 * timer_info->tick > PT_THRES_GUESS_NSUB_TIME && break_flag == 0) {
             break_flag = 1;
         }
         
@@ -121,9 +122,9 @@ exponential_guessing(int myrank, int nrank, pt_timer_info_t *timer_info, double 
         if (global_break_flag == 1) {
             if (step >= 1) {
                 *gpt_guess = ((double)nsub_arr[step] - (double)nsub_arr[step-1]) /
-                              ((double)tmet_avg[step] - (double)tmet_avg[step-1]);
+                              ((double)tmet_arr[step] - (double)tmet_arr[step-1]);
             } else {
-                *gpt_guess = (double)nsub_arr[step] / ((double)tmet_avg[step] - (double)timer_info->ovh);
+                *gpt_guess = (double)nsub_arr[step] / ((double)tmet_arr[step] - (double)timer_info->ovh);
             }
             break;
         }
@@ -187,14 +188,14 @@ fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t
             printf("Rank %d: Trying G/tick %f" " Hz, dx=%" PRIu64 ", dt=%" PRIu64 " ticks, nsub_min=%" PRIu64 "\n", myrank, gpt, dx, dt, nsub_min);
         }
         for (uint64_t i = 0; i < xlen; i++) {
-            _run_sub(nsub_min + i * dx);
+            pmet[i] = _run_sub(nsub_min + i * dx);
             for (int j = 0; j < MET_REPEAT; j++) {
-                pmet[i] += _run_sub(nsub_min + i * dx);
+                register uint64_t tmet = _run_sub(nsub_min + i * dx);
+                pmet[i] = tmet < pmet[i] ? tmet : pmet[i];
             }
-            pmet[i] /= MET_REPEAT;
         }
         for (uint64_t i = NUM_IGNORE_TIMING; i < xlen; i++) {
-            delta += (pmet[i] - pmet[i-1]) / timer_info->tick - dt;
+            delta = delta + ((int64_t)pmet[i] - (int64_t)pmet[i-1]) / (int64_t)timer_info->tick - (int64_t)dt;
             if (delta > 1000) {
                 printf("Rank %d: delta=%" PRId64 ", pmet[i]=%" PRIu64 ", pmet[i-1]=%" PRIu64 "\n", myrank, delta, pmet[i], pmet[i-1]);
             }
