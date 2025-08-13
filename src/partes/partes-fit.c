@@ -30,7 +30,7 @@ main(int argc, char *argv[])
     pt_gauge_info_t gauge_info;
     pt_timer_info_t timer_info;
     uint64_t *ptick_all = NULL, *povh_all = NULL;
-    double gpt_guess = 0, gpt_guess_all[nrank];
+    double gpt_guess = 0, *pgpt_guess_all;
     
     /* Init MPI */
     err = MPI_Init(&argc, &argv);
@@ -46,7 +46,8 @@ main(int argc, char *argv[])
     if (myrank == 0) {
         ptick_all = (uint64_t *)malloc(nrank * sizeof(uint64_t));
         povh_all = (uint64_t *)malloc(nrank * sizeof(uint64_t));
-        if (!ptick_all || !povh_all) {
+        pgpt_guess_all = (double *)malloc(nrank * sizeof(double));
+        if (!ptick_all || !povh_all || !pgpt_guess_all) {
             fprintf(stderr, "[Error] malloc failed\n");
             if (ptick_all) {
                 free(ptick_all);
@@ -55,6 +56,10 @@ main(int argc, char *argv[])
             if (povh_all) {
                 free(povh_all);
                 povh_all = NULL;
+            }
+            if (pgpt_guess_all) {
+                free(pgpt_guess_all);
+                pgpt_guess_all = NULL;
             }
             MPI_Finalize();
             return 1;
@@ -66,6 +71,10 @@ main(int argc, char *argv[])
         for (int i = 0; i < nrank; i++) {
             printf("rank %d: tick=%" PRIu64 ", ovh=%" PRIu64 "\n", i, ptick_all[i], povh_all[i]);
         }
+        free(ptick_all);
+        free(povh_all);
+        ptick_all = NULL;
+        povh_all = NULL;
     }
     
     /* Exponential guessing */
@@ -78,18 +87,13 @@ main(int argc, char *argv[])
         MPI_Finalize();
         return err;
     }
-    if (myrank == 0) {
-        gpt_guess_all[0] = gpt_guess;
-        for (int i = 1; i < nrank; i++) {
-            MPI_Recv(&gpt_guess_all[i], 1, MPI_DOUBLE, i, i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
-    } else {
-        MPI_Send(&gpt_guess, 1, MPI_DOUBLE, 0, myrank, MPI_COMM_WORLD);
-    }
+    MPI_Gather(&gpt_guess, 1, MPI_DOUBLE, pgpt_guess_all, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     if (myrank == 0) {
         for (int i = 0; i < nrank; i++) {
-            printf("rank %d: Guess gauges/tick=%lf\n", i, gpt_guess_all[i]);
+            printf("rank %d: Guess gauges/tick=%lf\n", i, pgpt_guess_all[i]);
         }
+        free(pgpt_guess_all);
+        pgpt_guess_all = NULL;
     }
 
 

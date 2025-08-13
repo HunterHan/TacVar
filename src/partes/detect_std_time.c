@@ -142,7 +142,7 @@ fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t
     double hi_gpt, lo_gpt, lo_gpt_bound, hi_gpt_bound, gpt;
     uint64_t dt = 10; // dx=10ticks
     uint64_t *pmet = NULL;
-    uint64_t xlen = NUM_IGNORE_TIMING + 10;
+    uint64_t xlen = NUM_IGNORE_TIMING + 10; // # of the nsub measured each try
     int64_t delta, delta2;  // Gap between measured and actual time gap of dx.
     uint64_t dx, nsub_min;
     uint64_t conv_me = 0, conv_other = 0, conv_target = 0, conv_now = 0;
