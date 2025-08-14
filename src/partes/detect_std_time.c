@@ -199,7 +199,7 @@ fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t
             if (delta > 1000) {
                 printf("Rank %d: delta=%" PRId64 ", pmet[i]=%" PRIu64 ", pmet[i-1]=%" PRIu64 "\n", myrank, delta, pmet[i], pmet[i-1]);
             }
-            delta2 += ((pmet[i] - pmet[i-1]) / timer_info->tick - dt) * ((pmet[i] - pmet[i-1]) / timer_info->tick - dt);
+            delta2 = delta2 + (((int64_t)pmet[i] - (int64_t)pmet[i-1]) / (int64_t)timer_info->tick - (int64_t)dt) * (((int64_t)pmet[i] - (int64_t)pmet[i-1]) / (int64_t)timer_info->tick - (int64_t)dt);
         }
 
         if (delta == 0 || fabs(hi_gpt - lo_gpt) < 0.01*gpt) {
