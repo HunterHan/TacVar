@@ -11,7 +11,6 @@
 #define PT_CALL_ID_REAR  1
 #define MAX_TRY_HZ 10000000000ULL // 10GHz
 #define MIN_TRY_HZ 100000000ULL   // 100MHz
-#define NUM_IGNORE_TIMING 2 // Ignore the first 2 results by default
 #define PT_THRS_GUESS_VAR 0.01 // 1% variance threshold for exponential guessing
 #define PT_THRES_GUESS_NSUB_TIME 1000000000ULL // Time threshold for exponential guessing
 #define PT_VAR_START_NSTEP 5 // Start calculating variance after 5 steps

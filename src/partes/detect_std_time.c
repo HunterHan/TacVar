@@ -9,7 +9,10 @@
 #include "pterr.h"
 #include "partes_types.h"
 
+#define NUM_IGNORE_TIMING 2 // Ignore the first 2 results by default
 #define MET_REPEAT 10
+#define FIT_XLEN 25
+#define DELTA_TICK 1000
 
 extern int calc_sample_var_1d_u64(uint64_t *arr, size_t n, double *var);
 
@@ -141,9 +144,9 @@ int
 fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t *gauge_info, double gpt_guess)
 {
     double hi_gpt, lo_gpt, lo_gpt_bound, hi_gpt_bound, gpt;
-    uint64_t dt = 10; // dx=10ticks
+    uint64_t dt = DELTA_TICK; // dx=10ticks
     uint64_t *pmet = NULL;
-    uint64_t xlen = NUM_IGNORE_TIMING + 10; // # of the nsub measured each try
+    uint64_t xlen = NUM_IGNORE_TIMING + FIT_XLEN; // # of the nsub measured each try
     int64_t delta, delta2;  // Gap between measured and actual time gap of dx.
     uint64_t dx, nsub_min;
     uint64_t conv_me = 0, conv_other = 0, conv_target = 0, conv_now = 0;
@@ -196,9 +199,6 @@ fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t
         }
         for (uint64_t i = NUM_IGNORE_TIMING; i < xlen; i++) {
             delta = delta + ((int64_t)pmet[i] - (int64_t)pmet[i-1]) / (int64_t)timer_info->tick - (int64_t)dt;
-            if (delta > 1000) {
-                printf("Rank %d: delta=%" PRId64 ", pmet[i]=%" PRIu64 ", pmet[i-1]=%" PRIu64 "\n", myrank, delta, pmet[i], pmet[i-1]);
-            }
             delta2 = delta2 + (((int64_t)pmet[i] - (int64_t)pmet[i-1]) / (int64_t)timer_info->tick - (int64_t)dt) * (((int64_t)pmet[i] - (int64_t)pmet[i-1]) / (int64_t)timer_info->tick - (int64_t)dt);
         }
 
