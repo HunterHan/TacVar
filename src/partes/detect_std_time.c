@@ -12,7 +12,7 @@
 #define NUM_IGNORE_TIMING 2 // Ignore the first 2 results by default
 #define MET_REPEAT 10
 #define FIT_XLEN 25
-#define DELTA_TICK 1000
+#define DELTA_TICK 10
 
 extern int calc_sample_var_1d_u64(uint64_t *arr, size_t n, double *var);
 
@@ -125,9 +125,10 @@ exponential_guessing(int myrank, int nrank, pt_timer_info_t *timer_info, double 
         if (global_break_flag == 1) {
             if (step >= 1) {
                 *gpt_guess = ((double)nsub_arr[step] - (double)nsub_arr[step-1]) /
-                              ((double)tmet_arr[step] - (double)tmet_arr[step-1]);
+                             ((double)tmet_arr[step] - (double)tmet_arr[step-1]);
             } else {
-                *gpt_guess = (double)nsub_arr[step] / ((double)tmet_arr[step] - (double)timer_info->ovh);
+                *gpt_guess = (double)nsub_arr[step] / ((double)tmet_arr[step] -
+                             (double)timer_info->ovh);
             }
             break;
         }
@@ -156,8 +157,10 @@ fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t
     gpt = gpt_guess;
     lo_gpt = gpt_guess / 2;  // 0.5 * t_guess
     hi_gpt = gpt_guess * 2;  // 2.0 * t_guess
-    lo_gpt_bound = timer_info->tick * ((double)MIN_TRY_HZ / gauge_info->cy_per_op / (double)1e9);
-    hi_gpt_bound = timer_info->tick * ((double)MAX_TRY_HZ / gauge_info->cy_per_op / (double)1e9);
+    lo_gpt_bound =  timer_info->tick * 
+                    ((double)MIN_TRY_HZ / gauge_info->cy_per_op / (double)1e9);
+    hi_gpt_bound =  timer_info->tick * 
+                    ((double)MAX_TRY_HZ / gauge_info->cy_per_op / (double)1e9);
     
     // Clamp to reasonable bounds
     // gauge_per_ns = freq_hz / 1e9
@@ -188,7 +191,8 @@ fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t
 
             delta = 0;
             delta2 = 0;
-            printf("Rank %d: Trying G/tick %f" " Hz, dx=%" PRIu64 ", dt=%" PRIu64 " ticks, nsub_min=%" PRIu64 "\n", myrank, gpt, dx, dt, nsub_min);
+            printf("Rank %d: Trying G/tick %f" " Hz, dx=%" PRIu64 ", dt=%" PRIu64 
+                " ticks, nsub_min=%" PRIu64 "\n", myrank, gpt, dx, dt, nsub_min);
         }
         for (uint64_t i = 0; i < xlen; i++) {
             pmet[i] = _run_sub(nsub_min + i * dx);
@@ -199,7 +203,9 @@ fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t
         }
         for (uint64_t i = NUM_IGNORE_TIMING; i < xlen; i++) {
             delta = delta + ((int64_t)pmet[i] - (int64_t)pmet[i-1]) / (int64_t)timer_info->tick - (int64_t)dt;
-            delta2 = delta2 + (((int64_t)pmet[i] - (int64_t)pmet[i-1]) / (int64_t)timer_info->tick - (int64_t)dt) * (((int64_t)pmet[i] - (int64_t)pmet[i-1]) / (int64_t)timer_info->tick - (int64_t)dt);
+            delta2 = delta2 + (((int64_t)pmet[i] - (int64_t)pmet[i-1]) / 
+                    (int64_t)timer_info->tick - (int64_t)dt) * (((int64_t)pmet[i] -
+                    (int64_t)pmet[i-1]) / (int64_t)timer_info->tick - (int64_t)dt);
         }
 
         if (delta == 0 || fabs(hi_gpt - lo_gpt) < 0.01*gpt) {

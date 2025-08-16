@@ -15,7 +15,18 @@ Usage:
 $ cd TacVar/src/partes/tools
 $ make run_nsub_mpi.x
 # Run a 1000-operation nsub kernel for 100 times.
-$ mpirun -np ./make_run_nsub_mpi.x 1000 100
+$ mpirun -np <nprocs>./make_run_nsub_mpi.x 1000 100
 ```
 
-# 
+## run_nsub_mpi_with_w
+
+run_nsub_mpi_with_w accepts _gpt_ args, and runs the number of nsub kernels from _ticks_ to _ticke_ with _interval_ ticks as interval, each tick runs for _nrepeat_ times. For each tick, the 1D Wasserstein Distance between the cdf (with _ntiles_ tiles) of measured nsub time and standard time calculated with _gpt_ and tick will be printed.
+
+Usage:
+
+``` bash
+$ cd TacVar/src/partes/tools
+$ make run_nsub_mpi.x
+# Run a 1000-operation nsub kernel for 100 times.
+$ mpirun -np <nprocs> ./make_run_nsub_mpi_with_w.x <gpt> <ticks> <ticke> <interval> <ntiles>
+``` 
