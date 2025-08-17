@@ -4,6 +4,8 @@ TacVar/src/partes/tools contains tools for developing ParTES of TacVAR. These to
 
 Tool list:
 - **run_nsub_mpi**: Execute nsub kernels for multiple times and print results to csv files.
+- **run_nsub_mpi_with_w**: Measuring sub kernel from ticks to ticke, caculating the Wasserstein Distance of met_cdf vs theoretical time.
+- **meas_pair**: Calculate statistical measures (1D Wasserstein Distance and Pearson correlation coefficient) between CDFs of two different nsub kernel measurements. Outputs raw measurements to CSV files. 
 
 ## run_nsub_mpi
 
@@ -28,5 +30,17 @@ Usage:
 $ cd TacVar/src/partes/tools
 $ make run_nsub_mpi.x
 # Run a 1000-operation nsub kernel for 100 times.
-$ mpirun -np <nprocs> ./make_run_nsub_mpi_with_w.x <gpt> <ticks> <ticke> <interval> <ntiles>
+$ mpirun -np <nprocs> ./make_run_nsub_mpi_with_w.x <gpt> <ticks> <ticke> <interval> <ntiles> <cut_tile>
 ``` 
+
+## meas_pair
+
+meas_pair accepts <nsub1> <nsub2> args, and runs the number of nsub kernels for <nrepeat> times. Calculating the 1D Wasserstein Distance and Pearson correlation coefficient between the cdf of nsub1 and nsub2. The number of quantiles are set by <ntiles>, calculated from 0 to <cut_tile> in (0, 1]. The output includes both the Wasserstein distance (in nanoseconds) and the Pearson correlation coefficient for each MPI rank. Raw measurement results are saved to CSV files named meas_pair_r<rankid>_ng<nsub1/2>.csv with one measurement per line and no header.
+
+Usage:
+
+``` bash
+$ cd TacVar/src/partes/tools
+$ make meas_pair.x
+$ mpirun -np <nprocs> ./meas_pair.x <nsub1> <nsub2> <nrepeat> <ntiles> <cut_tile>
+```
