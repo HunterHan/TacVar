@@ -90,16 +90,13 @@ main(int argc, char *argv[])
     MPI_Comm_size(MPI_COMM_WORLD, &nrank);
     
     /* Open CSV file for this rank */
-    snprintf(fname, sizeof(fname), "run_nsub_mpi_%d.csv", myrank);
+    snprintf(fname, sizeof(fname), "meas_r%d_ng%" PRIu64 ".csv", myrank, nsub);
     fp = fopen(fname, "w");
     if (!fp) {
         fprintf(stderr, "Rank %d: failed to open %s\n", myrank, fname);
         MPI_Finalize();
         return 1;
     }
-    
-    /* Write CSV header */
-    fprintf(fp, "nsub,time_ns\n");
     
     /* Run measurements with MPI barrier sync */
     for (uint64_t i = 0; i < nrepeat; i++) {
@@ -113,7 +110,7 @@ main(int argc, char *argv[])
         measured_ns = run_sub_kernel(nsub);
         
         /* Write result to CSV */
-        fprintf(fp, "%" PRIu64 ",%" PRId64 "\n", nsub, measured_ns);
+        fprintf(fp, "%" PRIu64 "\n", measured_ns);
         fflush(fp);
     }
     
@@ -122,7 +119,7 @@ main(int argc, char *argv[])
     if (myrank == 0) {
         printf("Completed %" PRIu64 " measurements of nsub=%" PRIu64 " on %d ranks\n", 
                nrepeat, nsub, nrank);
-        printf("Results written to run_nsub_mpi_<rank>.csv files\n");
+        printf("Results written to meas_r<rank>_ng<nsub>.csv files\n");
     }
     
     MPI_Finalize();

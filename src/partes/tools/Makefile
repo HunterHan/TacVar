@@ -3,13 +3,13 @@ CFLAGS = -Wall -Wextra -std=c99 -O2
 LDFLAGS = -lm
 
 # All tool targets
-all: run_nsub_mpi.x run_nsub_mpi_with_w.x meas_pair.x
+all: meas_single.x meas_single_with_w.x meas_pair.x
 
-run_nsub_mpi.x: run_nsub_mpi.o
-	$(CC) run_nsub_mpi.o -o $@ $(LDFLAGS)
+meas_single.x: meas_single.o
+	$(CC) meas_single.o -o $@ $(LDFLAGS)
 
-run_nsub_mpi_with_w.x: run_nsub_mpi_with_w.o
-	$(CC) run_nsub_mpi_with_w.o -o $@ $(LDFLAGS)
+meas_single_with_w.x: meas_single_with_w.o
+	$(CC) meas_single_with_w.o -o $@ $(LDFLAGS)
 
 meas_pair.x: meas_pair.o
 	$(CC) meas_pair.o -o $@ $(LDFLAGS)
