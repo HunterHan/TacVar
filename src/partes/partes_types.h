@@ -5,6 +5,7 @@
 #ifndef PARTES_TYPES_H
 #define PARTES_TYPES_H
 
+#include <stdint.h>
 #include <stddef.h>
 
 #define PT_CALL_ID_FRONT 0
