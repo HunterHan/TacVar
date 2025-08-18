@@ -194,7 +194,7 @@ fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t
 
             delta = 0;
             delta2 = 0;
-            printf("Rank %d: Trying G/tick %f" " Hz, dx=%" PRIu64 ", dt=%" PRIu64 
+            printf("Rank %d: Trying %f G/tick, dx=%" PRIu64 ", dt=%" PRIu64 
                 " ticks, nsub_min=%" PRIu64 "\n", myrank, gpt, dx, dt, nsub_min);
         }
         for (uint64_t i = 0; i < xlen; i++) {
