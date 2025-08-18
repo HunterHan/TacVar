@@ -1,5 +1,6 @@
+#define _XOPEN_SOURCE 700
+#define _POSIX_C_SOURCE 200809L
 #define _GNU_SOURCE
-#define _ISOC11_SOURCE
 #include <stdio.h>
 #include <stdint.h>
 #include <time.h>

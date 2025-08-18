@@ -2,6 +2,9 @@
  * @file partes-fit.c
  * @brief Standalone utility to detect standard runtime of gauge block
  */
+#define _XOPEN_SOURCE 700
+#define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>

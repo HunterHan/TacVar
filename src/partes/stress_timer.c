@@ -2,6 +2,8 @@
  * @file stress_timer.c
  * @brief: Stress running the timer, determine the time per tick and the lowest overhead.
  */
+#define _XOPEN_SOURCE 700
+#define _POSIX_C_SOURCE 200809L
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdint.h>

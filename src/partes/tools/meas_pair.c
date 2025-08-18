@@ -8,6 +8,9 @@
  * 
  * Usage: mpirun -np <nprocs> ./meas_pair.x <nsub1> <nsub2> <nrepeat> <ntiles> <cut_tile>
  */
+#define _XOPEN_SOURCE 700
+#define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -18,7 +21,8 @@
 #include "../pterr.h"
 
 /* Comparison function for qsort */
-static int compare_int64(const void *a, const void *b)
+static int 
+compare_int64(const void *a, const void *b)
 {
     int64_t x = *(const int64_t *)a;
     int64_t y = *(const int64_t *)b;

@@ -2,6 +2,9 @@
  * @file run_nsub_mpi.c
  * @brief Simple MPI utility to run subtraction kernel and write timing results to CSV
  */
+#define _XOPEN_SOURCE 700
+#define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>

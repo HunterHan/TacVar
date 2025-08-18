@@ -7,6 +7,9 @@
  * 
  * Usage: mpirun -np <nprocs> ./run_nsub_mpi_with_w.x <gpt> <ticks> <ticke> <interval> <ntiles> <nspt> <cut_tile>
  */
+#define _XOPEN_SOURCE 700
+#define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
