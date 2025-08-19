@@ -33,14 +33,14 @@ calc_w(int64_t *tm_arr, uint64_t tm_len, int64_t *sim_cdf, int64_t *w_arr, doubl
     double w = 0, wm = 0;
     int wtile = (int)((1 - p_zcut) * 100.0); // Using 100 as NTILE
     
-    for (size_t i = 0; i < 100; i++) {
-        size_t itm = (size_t)((double)i / 100.0 * tm_len);
+    for (int i = 0; i < 100; i++) {
+        int itm = (int)((double)i / 100.0 * tm_len);
         w_arr[i] = sim_cdf[i] - tm_arr[itm];
         wp_arr[i] = (double)w_arr[i] / tm_arr[itm];
     }
     
-    for (size_t i = 0; i < wtile; i++) {
-        size_t itm = (size_t)((double)i / 100.0 * tm_len);
+    for (int i = 0; i < wtile; i++) {
+        int itm = (int)((double)i / 100.0 * tm_len);
         w += llabs(w_arr[i]);
         wm += tm_arr[itm];
     }

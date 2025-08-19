@@ -12,10 +12,6 @@
 #include "pterr.h"
 #include "partes_types.h"
 
-extern int fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t *gauge_info, double gpt_guess);
-extern int stress_timer(int ntest, int nwait, int isroot, int isverb, pt_timer_info_t *timer_info);
-extern int exponential_guessing(int myrank, int nrank, pt_timer_info_t *timer_info, double *gpt_guess);
-
 #define _ptm_handle_error(err, msg) do { \
     if (err != 0) { \
         fprintf(stderr, "[Error] %s: %s\n", msg, get_pterr_str(err)); \
@@ -24,6 +20,9 @@ extern int exponential_guessing(int myrank, int nrank, pt_timer_info_t *timer_in
     } \
 } while(0)
 
+extern int fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t *gauge_info, double gpt_guess);
+extern int stress_timer(int ntest, int nwait, int isroot, int isverb, pt_timer_info_t *timer_info);
+extern int exponential_guessing(int myrank, int nrank, pt_timer_info_t *timer_info, double *gpt_guess);
 extern const char *get_pterr_str(enum pterr err);
 
 int
@@ -140,6 +139,14 @@ main(int argc, char *argv[])
         wtime_per_op_all = NULL;
         gpt_all = NULL;
     }
+
+    /* Metrics at 1s interval and 1s division */
+    // Accuracy test at 1s with 0.1s division
+    
+
+
+    // 
+
     
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Finalize();

@@ -4,6 +4,7 @@ LDFLAGS = -lm
 
 # Source directories
 KERNELDIR = kernels
+GAUGEDIR = gauges
 TIMERDIR = timers
 
 # Core object files for partes
@@ -13,6 +14,7 @@ CORE_OBJS = partes.o parse_args.o stress_timer.o pterr.o stat.o detect_std_time.
 KERNEL_OBJS = $(KERNELDIR)/none.o $(KERNELDIR)/triad.o $(KERNELDIR)/scale.o \
               $(KERNELDIR)/copy.o $(KERNELDIR)/add.o $(KERNELDIR)/pow.o \
               $(KERNELDIR)/dgemm.o $(KERNELDIR)/bcast.o
+
 
 # Timer object files
 TIMER_OBJS = $(wildcard $(TIMERDIR)/*.o)

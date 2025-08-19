@@ -11,6 +11,8 @@
 #include <mpi.h>
 #include "pterr.h"
 #include "partes_types.h"
+#include "gauges/sub.h"
+#include "timers/clock_gettime.h"
 
 #define NUM_IGNORE_TIMING 2 // Ignore the first 2 results by default
 #define MET_REPEAT 10
@@ -27,45 +29,14 @@ static inline int64_t _run_sub(uint64_t nsub);
 static inline int64_t 
 _run_sub(uint64_t nsub)
 {
-    struct timespec tv;
-    int64_t ns0, ns1;
-
+    int64_t res;
+    __timer_init_clock_gettime;
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
-
-    register uint64_t ra = nsub;
-    register uint64_t rb = 1;
-    clock_gettime(CLOCK_MONOTONIC, &tv);
-    ns0 = (int64_t)tv.tv_sec * 1000000000ULL + (int64_t)tv.tv_nsec;
-#if defined(__x86_64__)
-    __asm__ __volatile__(
-        "1:\n\t"
-        "cmp $0, %0\n\t"
-        "je 2f\n\t"
-        "sub %1, %0\n\t"
-        "jmp 1b\n\t"
-        "2:\n\t"
-        : "+r"(ra)
-        : "r"(rb)
-        : "cc");
-#elif defined(__aarch64__)
-    __asm__ __volatile__(
-        "1:\n\t"
-        "cmp %0, #0\n\t"
-        "beq 2f\n\t"
-        "sub %0, %0, %1\n\t"
-        "b 1b\n\t"
-        "2:\n\t"
-        : "+r"(ra)
-        : "r"(rb)
-        : "cc");
-#else
-    while (ra) { ra -= rb; }
-#endif
-
-    clock_gettime(CLOCK_MONOTONIC, &tv);
-    ns1 = (int64_t)tv.tv_sec * 1000000000ULL + (int64_t)tv.tv_nsec;
-    return ns1 - ns0;
+    __timer_tick_clock_gettime;
+    __gauge_sub_intrinsic(nsub);
+    __timer_tock_clock_gettime(res);
+    return res;
 }
 
 /** 
@@ -101,7 +72,7 @@ exponential_guessing(int myrank, int nrank, pt_timer_info_t *timer_info, double 
 
         /* Run PT_VAR_START_NSTEP steps */
         for (int i = 0; i < PT_VAR_MAX_NSTEP; i++) {
-            tmet = _run_sub(nsub) / timer_info->tick;
+            tmet = (uint64_t)_run_sub(nsub) / timer_info->tick;
             tmet_min = tmet < tmet_min ? tmet : tmet_min;
         }
         tmet_arr[step] = tmet_min;
@@ -198,9 +169,9 @@ fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t
                 " ticks, nsub_min=%" PRIu64 "\n", myrank, gpt, dx, dt, nsub_min);
         }
         for (uint64_t i = 0; i < xlen; i++) {
-            pmet[i] = _run_sub(nsub_min + i * dx);
+            pmet[i] = (uint64_t)_run_sub(nsub_min + i * dx);
             for (int j = 0; j < MET_REPEAT; j++) {
-                register uint64_t tmet = _run_sub(nsub_min + i * dx);
+                register uint64_t tmet = (uint64_t)_run_sub(nsub_min + i * dx);
                 pmet[i] = tmet < pmet[i] ? tmet : pmet[i];
             }
         }
