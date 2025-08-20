@@ -124,6 +124,9 @@ _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_info_t *timer_i
         ptmp = pt0;
         pt0 = pt1;
         pt1 = ptmp;
+        ptmp = pt0_cdf;
+        pt0_cdf = pt1_cdf;
+        pt1_cdf = ptmp;
         ptmp = NULL;
     }
 
