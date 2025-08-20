@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <mpi.h>
+#include <math.h>
 #include "pterr.h"
 #include "partes_types.h"
 #include "timers/clock_gettime.h"
@@ -60,8 +61,7 @@ static int
 _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_info_t *timer_info, pt_gauge_info_t *gauge_info)
 {
     int ret = PTERR_SUCCESS;
-    uint64_t te = ts + dt * nintv;
-    uint64_t ticks, ticke, ng;
+    uint64_t ng;
     uint64_t *pt0=NULL, *pt1=NULL, *ptmp=NULL;
     uint64_t *pt0_cdf=NULL, *pt1_cdf=NULL;
     double *wabs_all=NULL, *wrel_all=NULL;
@@ -86,10 +86,8 @@ _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_info_t *timer_i
         if (wrel_all) free(wrel_all);
         return ret;
     }
-    ticks = ts / timer_info->tick;
-    ticke = te / timer_info->tick;
 
-    ng = ts / timer_info->tick / gauge_info->gpt;
+    ng = (uint64_t)((double)ts / (double)timer_info->tick * (double)gauge_info->gpt);
     for (int i = 0; i < NMEAS; i++) {
         pt0[i] = (uint64_t)(_run_sub(ng) - timer_info->ovh);
     }
@@ -99,9 +97,9 @@ _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_info_t *timer_i
         pt0_cdf[i] = pt0[tid];
     }
 
-    for (int n = 0; n < nintv; n++) {
+    for (uint64_t n = 0; n < nintv; n++) {
         uint64_t t = ts + n * dt;
-        ng = t / timer_info->tick / gauge_info->gpt;
+        ng = (uint64_t)((double)t / (double)timer_info->tick * (double)gauge_info->gpt);
         double wabs = 0, wrel = 0;
 
         for (int i = 0; i < NMEAS; i++) {
@@ -111,8 +109,8 @@ _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_info_t *timer_i
         for (int i = 0; i < NTILE; i++) {
             size_t tid = (size_t)((double)i / (double)NTILE * (double)NMEAS);
             pt1_cdf[i] = pt1[tid];
-            wabs += llabs(pt1_cdf[i] - t);
-            wrel += llabs(pt1_cdf[i] - pt0_cdf[i]);
+            wabs += fabs((double)pt1_cdf[i] - (double)t);
+            wrel += fabs((double)pt1_cdf[i] - (double)pt0_cdf[i]);
         }
         wabs = (double)wabs / (double)NTILE;
         wrel = (double)wrel / (double)NTILE;
@@ -120,7 +118,7 @@ _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_info_t *timer_i
         MPI_Gather(&wrel, 1, MPI_DOUBLE, wrel_all, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
         if (myrank == 0) {
             for (int i = 0; i < nrank; i++) {
-                printf("rank %d: wabs=%f, wrel=%f\n", i, wabs_all[i], wrel_all[i]);
+                printf("rank %d: t=%" PRIu64 ", ng=%" PRIu64 ", wabs=%f, wrel=%f\n", i, t, ng, wabs_all[i], wrel_all[i]);
             }
         }
         ptmp = pt0;
