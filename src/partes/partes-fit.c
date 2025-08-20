@@ -5,12 +5,16 @@
 #define _XOPEN_SOURCE 700
 #define _POSIX_C_SOURCE 200809L
 #define _GNU_SOURCE
+#define NMEAS 100
+#define NTILE 100
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
 #include <mpi.h>
 #include "pterr.h"
 #include "partes_types.h"
+#include "timers/clock_gettime.h"
+#include "gauges/sub.h"
 
 #define _ptm_handle_error(err, msg) do { \
     if (err != 0) { \
@@ -24,6 +28,117 @@ extern int fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_g
 extern int stress_timer(int ntest, int nwait, int isroot, int isverb, pt_timer_info_t *timer_info);
 extern int exponential_guessing(int myrank, int nrank, pt_timer_info_t *timer_info, double *gpt_guess);
 extern const char *get_pterr_str(enum pterr err);
+
+static int _comp_u64(const void *a, const void *b);
+static inline int64_t _run_sub(uint64_t nsub);
+/**
+ * @brief Test key metrics for MMI and MMD at a given t0, with interval dt*nintv. 
+ */
+static int _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, 
+    pt_timer_info_t *timer_info, pt_gauge_info_t *gauge_info);
+
+static int
+_comp_u64(const void *a, const void *b)
+{
+    return (*(const uint64_t *)a > *(const uint64_t *)b) - (*(const uint64_t *)a < *(const uint64_t *)b);
+}
+
+static inline int64_t 
+_run_sub(uint64_t nsub)
+{
+    int64_t res;
+    __timer_init_clock_gettime;
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+    __timer_tick_clock_gettime;
+    __gauge_sub_intrinsic(nsub);
+    __timer_tock_clock_gettime(res);
+    return res;
+}
+
+static int
+_test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_info_t *timer_info, pt_gauge_info_t *gauge_info)
+{
+    int ret = PTERR_SUCCESS;
+    uint64_t te = ts + dt * nintv;
+    uint64_t ticks, ticke, ng;
+    uint64_t *pt0=NULL, *pt1=NULL, *ptmp=NULL;
+    uint64_t *pt0_cdf=NULL, *pt1_cdf=NULL;
+    double *wabs_all=NULL, *wrel_all=NULL;
+    int myrank=0, nrank=0;
+    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+    MPI_Comm_size(MPI_COMM_WORLD, &nrank);
+
+    pt0 = (uint64_t *)malloc(NMEAS * sizeof(uint64_t));
+    pt1 = (uint64_t *)malloc(NMEAS * sizeof(uint64_t));
+    pt0_cdf = (uint64_t *)malloc(NTILE * sizeof(uint64_t));
+    pt1_cdf = (uint64_t *)malloc(NTILE * sizeof(uint64_t));
+    wabs_all = (double *)malloc(nrank * sizeof(double));
+    wrel_all = (double *)malloc(nrank * sizeof(double));
+    if (!pt0 || !pt1 || !pt0_cdf || !pt1_cdf || !wabs_all || !wrel_all) {
+        ret = PTERR_MALLOC_FAILED;
+        fprintf(stderr, "[Error] malloc failed\n");
+        if (pt0) free(pt0);
+        if (pt1) free(pt1);
+        if (pt0_cdf) free(pt0_cdf);
+        if (pt1_cdf) free(pt1_cdf);
+        if (wabs_all) free(wabs_all);
+        if (wrel_all) free(wrel_all);
+        return ret;
+    }
+    ticks = ts / timer_info->tick;
+    ticke = te / timer_info->tick;
+
+    ng = ts / timer_info->tick / gauge_info->gpt;
+    for (int i = 0; i < NMEAS; i++) {
+        pt0[i] = (uint64_t)(_run_sub(ng) - timer_info->ovh);
+    }
+    qsort(pt0, NMEAS, sizeof(uint64_t), _comp_u64);
+    for (int i = 0; i < NTILE; i++) {
+        size_t tid = (size_t)((double)i / (double)NTILE * (double)NMEAS);
+        pt0_cdf[i] = pt0[tid];
+    }
+
+    for (int n = 0; n < nintv; n++) {
+        uint64_t t = ts + n * dt;
+        ng = t / timer_info->tick / gauge_info->gpt;
+        double wabs = 0, wrel = 0;
+
+        for (int i = 0; i < NMEAS; i++) {
+            pt1[i] = (uint64_t)(_run_sub(ng) - timer_info->ovh);
+        }
+        qsort(pt1, NMEAS, sizeof(uint64_t), _comp_u64);
+        for (int i = 0; i < NTILE; i++) {
+            size_t tid = (size_t)((double)i / (double)NTILE * (double)NMEAS);
+            pt1_cdf[i] = pt1[tid];
+            wabs += llabs(pt1_cdf[i] - t);
+            wrel += llabs(pt1_cdf[i] - pt0_cdf[i]);
+        }
+        wabs = (double)wabs / (double)NTILE;
+        wrel = (double)wrel / (double)NTILE;
+        MPI_Gather(&wabs, 1, MPI_DOUBLE, wabs_all, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Gather(&wrel, 1, MPI_DOUBLE, wrel_all, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (myrank == 0) {
+            for (int i = 0; i < nrank; i++) {
+                printf("rank %d: wabs=%f, wrel=%f\n", i, wabs_all[i], wrel_all[i]);
+            }
+        }
+        ptmp = pt0;
+        pt0 = pt1;
+        pt1 = ptmp;
+        ptmp = NULL;
+    }
+
+    free(pt0);
+    free(pt1);
+    free(pt0_cdf);
+    free(pt1_cdf);
+    free(wabs_all);
+    free(wrel_all);
+
+    return ret;
+}
+
 
 int
 main(int argc, char *argv[])
@@ -128,7 +243,7 @@ main(int argc, char *argv[])
     
     MPI_Gather(&gauge_info.wtime_per_op, 1, MPI_DOUBLE, wtime_per_op_all, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Gather(&gauge_info.gpt, 1, MPI_DOUBLE, gpt_all, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    
+
     if (myrank == 0) {
         for (int i = 0; i < nrank; i++) {
             printf("rank %d: gpt=%.6f, wtime_per_op=%.6f\n", 
@@ -140,13 +255,12 @@ main(int argc, char *argv[])
         gpt_all = NULL;
     }
 
-    /* Metrics at 1s interval and 1s division */
-    // Accuracy test at 1s with 0.1s division
-    
-
-
-    // 
-
+    err = _test_ltt_ltd(1e8, 1e7, 10, &timer_info, &gauge_info);
+    if (err != PTERR_SUCCESS) {
+        fprintf(stderr, "[Error] Rank %d: _test_ltt_ltd failed: %d\n", myrank, err);
+        MPI_Finalize();
+        return err;
+    }
     
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Finalize();
