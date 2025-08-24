@@ -64,7 +64,7 @@ _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_info_t *timer_i
     uint64_t ng;
     uint64_t *pt0=NULL, *pt1=NULL, *ptmp=NULL;
     uint64_t *pt0_cdf=NULL, *pt1_cdf=NULL;
-    double *wabs_all=NULL, *wrel_all=NULL;
+    double *wabs_all=NULL, *wrel_all=NULL, *wabs2min_all=NULL;
     int myrank=0, nrank=0;
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
     MPI_Comm_size(MPI_COMM_WORLD, &nrank);
@@ -75,6 +75,7 @@ _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_info_t *timer_i
     pt1_cdf = (uint64_t *)malloc(NTILE * sizeof(uint64_t));
     wabs_all = (double *)malloc(nrank * sizeof(double));
     wrel_all = (double *)malloc(nrank * sizeof(double));
+    wabs2min_all = (double *)malloc(nrank * sizeof(double));
     if (!pt0 || !pt1 || !pt0_cdf || !pt1_cdf || !wabs_all || !wrel_all) {
         ret = PTERR_MALLOC_FAILED;
         fprintf(stderr, "[Error] malloc failed\n");
@@ -84,6 +85,7 @@ _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_info_t *timer_i
         if (pt1_cdf) free(pt1_cdf);
         if (wabs_all) free(wabs_all);
         if (wrel_all) free(wrel_all);
+        if (wabs2min_all) free(wabs2min_all);
         return ret;
     }
 
@@ -100,7 +102,8 @@ _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_info_t *timer_i
     for (uint64_t n = 0; n < nintv; n++) {
         uint64_t t = ts + n * dt;
         ng = (uint64_t)((double)t / (double)timer_info->tick * (double)gauge_info->gpt);
-        double wabs = 0, wrel = 0;
+        // wabs: W 2 theo; wrel: W between 2 timesteps; wabs2min: wabs-min_measured_t
+        double wabs = 0, wrel = 0, wabs2min=0; 
 
         for (int i = 0; i < NMEAS; i++) {
             pt1[i] = (uint64_t)(_run_sub(ng) - timer_info->ovh);
@@ -110,15 +113,18 @@ _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_info_t *timer_i
             size_t tid = (size_t)((double)i / (double)NTILE * (double)NMEAS);
             pt1_cdf[i] = pt1[tid];
             wabs += fabs((double)pt1_cdf[i] - (double)t);
+            wabs2min += fabs((double)pt1_cdf[i] - (double)pt1_cdf[0]);
             wrel += fabs((double)pt1_cdf[i] - (double)pt0_cdf[i]);
         }
-        wabs = (double)wabs / (double)NTILE;
-        wrel = (double)wrel / (double)NTILE;
+        wabs = (double)wabs / (double)NTILE / (double)t;
+        wabs2min = (double)wabs2min / (double)NTILE / (double)t;
+        wrel = (double)wrel / (double)NTILE / dt;
         MPI_Gather(&wabs, 1, MPI_DOUBLE, wabs_all, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Gather(&wabs2min, 1, MPI_DOUBLE, wabs2min_all, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
         MPI_Gather(&wrel, 1, MPI_DOUBLE, wrel_all, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
         if (myrank == 0) {
             for (int i = 0; i < nrank; i++) {
-                printf("rank %d: t=%" PRIu64 ", ng=%" PRIu64 ", wabs=%f, wrel=%f\n", i, t, ng, wabs_all[i], wrel_all[i]);
+                printf("rank %d: t=%" PRIu64 ", ng=%" PRIu64 ", wabs=%f, wabs2min=%f, wrel=%f\n", i, t, ng, wabs_all[i], wabs2min_all[i], wrel_all[i]);
             }
         }
         ptmp = pt0;
@@ -135,6 +141,7 @@ _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_info_t *timer_i
     free(pt0_cdf);
     free(pt1_cdf);
     free(wabs_all);
+    free(wabs2min_all);
     free(wrel_all);
 
     return ret;
