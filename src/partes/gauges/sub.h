@@ -8,13 +8,11 @@
 
 #if defined(__x86_64__)
 #define __gauge_sub_intrinsic(n)       \
-    register uint64_t ra = (n), rb=1;  \
+    uint64_t ra = (n), rb=1;  \
     __asm__ __volatile__(               \
         "1:\n\t"                        \
-        "cmp $0, %0\n\t"                \
-        "je 2f\n\t"                     \
         "sub %1, %0\n\t"                \
-        "jmp 1b\n\t"                    \
+        "jnz 1b\n\t"                    \
         "2:\n\t"                        \
         : "+r"(ra)                      \
         : "r"(rb)                       \
@@ -22,22 +20,41 @@
 
 #elif defined(__aarch64__)
 #define __gauge_sub_intrinsic(n)       \
-    register uint64_t ra = (n), rb=1;  \
+    uint64_t ra = (n);        \
     __asm__ __volatile__(               \
         "1:\n\t"                        \
-        "cmp %0, #0\n\t"                \
-        "beq 2f\n\t"                    \
-        "sub %0, %0, %1\n\t"            \
-        "b 1b\n\t"                      \
-        "2:\n\t"                        \
+        "subs %0, %0, #1\n\t"           \
+        "bne 1b\n\t"                    \
         : "+r"(ra)                      \
-        : "r"(rb)                       \
+        :                               \
         : "cc")
+
+#elif defined(__riscv) && (__riscv_xlen == 64)
+#define __gauge_sub_intrinsic(n)       \
+    uint64_t ra = (n);        \
+    __asm__ __volatile__(               \
+        "1:\n\t"                        \
+        "addi %0, %0, -1\n\t"           \
+        "bnez %0, 1b\n\t"               \
+        : "+r"(ra)                      \
+        :                               \
+        : )
+
+#elif defined(__loongarch64)
+#define __gauge_sub_intrinsic(n)       \
+    uint64_t ra = (n);        \
+    __asm__ __volatile__(               \
+        "1:\n\t"                        \
+        "addi.d %0, %0, -1\n\t"         \
+        "bnez %0, 1b\n\t"               \
+        : "+r"(ra)                      \
+        :                               \
+        : )
 
 #else
     #define __gauge_sub_intrinsic(n)   \
-    register uint64_t ra = (n), rb=1;  \
-    while (ra) { ra -= rb; }
+    volatile uint64_t ra = (n); \
+    while (ra) { ra -= 1; }
 #endif // __x86_64__ || __aarch64__
 
 #endif // _SUB_H
