@@ -15,6 +15,7 @@
 #include "pterr.h"
 #include "partes_types.h"
 #include "./kernels/kernels.h"
+#include "gauges/sub.h"
 
 #define _ptm_handle_error(err, fname) \
     if (err != PTERR_SUCCESS) { \
@@ -129,8 +130,6 @@ main(int argc, char *argv[])
     
     // Run timing measurements
     for (int test = 0; test < ptopts.ntests; test++) {
-        register uint64_t ra = gauge[test];
-        register uint64_t rb = 1;
         struct timespec tv;
         uint64_t ns0, ns1;
         
@@ -144,31 +143,7 @@ main(int argc, char *argv[])
         ns0 = tv.tv_sec * 1e9 + tv.tv_nsec;
         
         // Run subtraction kernel (gauge block)
-#ifdef __x86_64__
-        __asm__ __volatile__ (
-            "1:\n\t"
-            "cmp $0, %0\n\t"
-            "je 2f\n\t"
-            "sub %1, %0\n\t"
-            "jmp 1b\n\t"
-            "2:\n\t"
-            : "+r" (ra)
-            : "r" (rb)
-            : "cc"
-        );
-#elif defined(__aarch64__)
-        __asm__ __volatile__ (
-            "1:\n\t"
-            "cmp %0, #0\n\t"
-            "beq 2f\n\t"
-            "sub %0, %0, %1\n\t"
-            "b 1b\n\t"
-            "2:\n\t"
-            : "+r" (ra)
-            : "r" (rb)
-            : "cc"
-        );
-#endif
+        __gauge_sub_intrinsic(gauge[test]);
         
         // Stop timing
         clock_gettime(CLOCK_MONOTONIC, &tv);

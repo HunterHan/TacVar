@@ -1,5 +1,5 @@
 CC = mpicc
-CFLAGS = -Wall -Wextra -std=c99 -O2
+CFLAGS = -Wall -Wextra -std=c99 -O3
 LDFLAGS = -lm
 
 # All tool targets

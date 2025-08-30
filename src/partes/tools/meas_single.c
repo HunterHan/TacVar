@@ -11,6 +11,7 @@
 #include <inttypes.h>
 #include <time.h>
 #include <mpi.h>
+#include "../gauges/sub.h"
 
 static inline int64_t run_sub_kernel(uint64_t nsub);
 
@@ -23,37 +24,10 @@ run_sub_kernel(uint64_t nsub)
     struct timespec tv;
     int64_t ns0, ns1;
     
-    register uint64_t ra = nsub;
-    register uint64_t rb = 1;
-    
     clock_gettime(CLOCK_MONOTONIC, &tv);
     ns0 = (int64_t)tv.tv_sec * 1000000000ULL + (int64_t)tv.tv_nsec;
     
-#if defined(__x86_64__)
-    __asm__ __volatile__(
-        "1:\n\t"
-        "cmp $0, %0\n\t"
-        "je 2f\n\t"
-        "sub %1, %0\n\t"
-        "jmp 1b\n\t"
-        "2:\n\t"
-        : "+r"(ra)
-        : "r"(rb)
-        : "cc");
-#elif defined(__aarch64__)
-    __asm__ __volatile__(
-        "1:\n\t"
-        "cmp %0, #0\n\t"
-        "beq 2f\n\t"
-        "sub %0, %0, %1\n\t"
-        "b 1b\n\t"
-        "2:\n\t"
-        : "+r"(ra)
-        : "r"(rb)
-        : "cc");
-#else
-    while (ra) { ra -= rb; }
-#endif
+    __gauge_sub_intrinsic(nsub);
     
     clock_gettime(CLOCK_MONOTONIC, &tv);
     ns1 = (int64_t)tv.tv_sec * 1000000000ULL + (int64_t)tv.tv_nsec;

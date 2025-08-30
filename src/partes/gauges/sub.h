@@ -8,14 +8,14 @@
 
 #if defined(__x86_64__)
 #define __gauge_sub_intrinsic(n)       \
-    uint64_t ra = (n), rb=1;  \
+    uint64_t ra = (n);        \
     __asm__ __volatile__(               \
         "1:\n\t"                        \
-        "sub %1, %0\n\t"                \
+        "sub $1, %0\n\t"                \
         "jnz 1b\n\t"                    \
         "2:\n\t"                        \
         : "+r"(ra)                      \
-        : "r"(rb)                       \
+        :                               \
         : "cc")
 
 #elif defined(__aarch64__)
