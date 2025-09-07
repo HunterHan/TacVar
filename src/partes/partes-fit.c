@@ -25,9 +25,9 @@
     } \
 } while(0)
 
-extern int fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t *gauge_info, double gpt_guess);
-extern int stress_timer(int ntest, int nwait, int isroot, int isverb, pt_timer_info_t *timer_info);
-extern int exponential_guessing(int myrank, int nrank, pt_timer_info_t *timer_info, double *gpt_guess);
+extern int fit_sub_time(int myrank, int nrank, pt_timer_spec_t *timer_spec, pt_gauge_info_t *gauge_info, double gpt_guess);
+extern int get_tspec(int ntest, pt_timer_spec_t *timer_spec);
+extern int exp_guess_gauge(int myrank, int nrank, pt_timer_spec_t *timer_spec, double *gpt_guess);
 extern const char *get_pterr_str(enum pterr err);
 
 static int _comp_u64(const void *a, const void *b);
@@ -36,7 +36,7 @@ static inline int64_t _run_sub(uint64_t nsub);
  * @brief Test key metrics for MMI and MMD at a given t0, with interval dt*nintv. 
  */
 static int _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, 
-    pt_timer_info_t *timer_info, pt_gauge_info_t *gauge_info);
+    pt_timer_spec_t *timer_spec, pt_gauge_info_t *gauge_info);
 
 static int
 _comp_u64(const void *a, const void *b)
@@ -58,7 +58,7 @@ _run_sub(uint64_t nsub)
 }
 
 static int
-_test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_info_t *timer_info, pt_gauge_info_t *gauge_info)
+_test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_spec_t *timer_spec, pt_gauge_info_t *gauge_info)
 {
     int ret = PTERR_SUCCESS;
     uint64_t ng;
@@ -89,9 +89,9 @@ _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_info_t *timer_i
         return ret;
     }
 
-    ng = (uint64_t)((double)ts / (double)timer_info->tick * (double)gauge_info->gpt);
+    ng = (uint64_t)((double)ts / (double)timer_spec->tick * (double)gauge_info->gpt);
     for (int i = 0; i < NMEAS; i++) {
-        pt0[i] = (uint64_t)(_run_sub(ng) - timer_info->ovh);
+        pt0[i] = (uint64_t)(_run_sub(ng) - timer_spec->ovh);
     }
     qsort(pt0, NMEAS, sizeof(uint64_t), _comp_u64);
     for (int i = 0; i < NTILE; i++) {
@@ -101,12 +101,12 @@ _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_info_t *timer_i
 
     for (uint64_t n = 0; n < nintv; n++) {
         uint64_t t = ts + n * dt;
-        ng = (uint64_t)((double)t / (double)timer_info->tick * (double)gauge_info->gpt);
+        ng = (uint64_t)((double)t / (double)timer_spec->tick * (double)gauge_info->gpt);
         // wabs: W 2 theo; wrel: W between 2 timesteps; wabs2min: wabs-min_measured_t
         double wabs = 0, wrel = 0, wabs2min=0; 
 
         for (int i = 0; i < NMEAS; i++) {
-            pt1[i] = (uint64_t)(_run_sub(ng) - timer_info->ovh);
+            pt1[i] = (uint64_t)(_run_sub(ng) - timer_spec->ovh);
         }
         qsort(pt1, NMEAS, sizeof(uint64_t), _comp_u64);
         for (int i = 0; i < NTILE; i++) {
@@ -153,9 +153,9 @@ main(int argc, char *argv[])
 {
     int myrank, nrank, err;
     pt_gauge_info_t gauge_info;
-    pt_timer_info_t timer_info;
-    uint64_t *ptick_all = NULL, *povh_all = NULL;
-    double gpt_guess = 0, *pgpt_guess_all;
+    pt_timer_spec_t timer_spec;
+    int64_t *ptick_all = NULL, *povh_all = NULL;
+    double gpt_guess = 0, *pgpt_guess_all = NULL;
     
     /* Init MPI */
     err = MPI_Init(&argc, &argv);
@@ -166,11 +166,11 @@ main(int argc, char *argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
     MPI_Comm_size(MPI_COMM_WORLD, &nrank);
     
-    err = stress_timer(10000, 2, 1, 1, &timer_info);
-    _ptm_handle_error(err, "stress_timer");
+    err = get_tspec(10000, &timer_spec);
+    _ptm_handle_error(err, "get_tspec");
     if (myrank == 0) {
-        ptick_all = (uint64_t *)malloc(nrank * sizeof(uint64_t));
-        povh_all = (uint64_t *)malloc(nrank * sizeof(uint64_t));
+        ptick_all = (int64_t *)malloc(nrank * sizeof(int64_t));
+        povh_all = (int64_t *)malloc(nrank * sizeof(int64_t));
         pgpt_guess_all = (double *)malloc(nrank * sizeof(double));
         if (!ptick_all || !povh_all || !pgpt_guess_all) {
             fprintf(stderr, "[Error] malloc failed\n");
@@ -190,11 +190,11 @@ main(int argc, char *argv[])
             return 1;
         }
     }
-    MPI_Gather(&timer_info.tick, 1, MPI_UINT64_T, ptick_all, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
-    MPI_Gather(&timer_info.ovh, 1, MPI_UINT64_T, povh_all, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+    MPI_Gather(&timer_spec.tick, 1, MPI_INT64_T, ptick_all, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
+    MPI_Gather(&timer_spec.ovh, 1, MPI_INT64_T, povh_all, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
     if (myrank == 0) {
         for (int i = 0; i < nrank; i++) {
-            printf("rank %d: tick=%" PRIu64 ", ovh=%" PRIu64 "\n", i, ptick_all[i], povh_all[i]);
+            printf("rank %d: tick=%" PRIi64 ", ovh=%" PRIi64 "\n", i, ptick_all[i], povh_all[i]);
         }
         free(ptick_all);
         free(povh_all);
@@ -206,9 +206,9 @@ main(int argc, char *argv[])
     if (myrank == 0) {
         printf("=== Exponential Guessing ===\n");
     }
-    err = exponential_guessing(myrank, nrank, &timer_info, &gpt_guess);
+    err = exp_guess_gauge(myrank, nrank, &timer_spec, &gpt_guess);
     if (err != PTERR_SUCCESS) {
-        fprintf(stderr, "[Error] Rank %d: exponential_guessing failed: %d\n", myrank, err);
+        fprintf(stderr, "[Error] Rank %d: exp_guess_gauge failed: %d\n", myrank, err);
         MPI_Finalize();
         return err;
     }
@@ -226,7 +226,7 @@ main(int argc, char *argv[])
     gauge_info.cy_per_op = 1; // TODO: what if cyc_per_op != 1?
     gauge_info.gpt = 0;
     gauge_info.wtime_per_op = 0;
-    err = fit_sub_time(myrank, nrank, &timer_info, &gauge_info, gpt_guess);
+    err = fit_sub_time(myrank, nrank, &timer_spec, &gauge_info, gpt_guess);
     if (err != PTERR_SUCCESS) {
         fprintf(stderr, "[Error] Rank %d: fit_sub_time failed: %d\n", myrank, err);
         MPI_Finalize();
@@ -263,7 +263,7 @@ main(int argc, char *argv[])
         gpt_all = NULL;
     }
 
-    err = _test_ltt_ltd(1e8, 1e7, 10, &timer_info, &gauge_info);
+    err = _test_ltt_ltd(1e8, 1e7, 10, &timer_spec, &gauge_info);
     if (err != PTERR_SUCCESS) {
         fprintf(stderr, "[Error] Rank %d: _test_ltt_ltd failed: %d\n", myrank, err);
         MPI_Finalize();

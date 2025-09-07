@@ -8,7 +8,7 @@ GAUGEDIR = gauges
 TIMERDIR = timers
 
 # Core object files for partes
-CORE_OBJS = partes.o parse_args.o stress_timer.o pterr.o stat.o detect_std_time.o
+CORE_OBJS = partes.o parse_args.o get_timer_spec.o pterr.o stat.o detect_std_time.o
 
 # Kernel object files
 KERNEL_OBJS = $(KERNELDIR)/none.o $(KERNELDIR)/triad.o $(KERNELDIR)/scale.o \
@@ -23,7 +23,7 @@ TIMER_OBJS = $(wildcard $(TIMERDIR)/*.o)
 PARTES_OBJS = $(CORE_OBJS) $(KERNEL_OBJS) $(TIMER_OBJS)
 
 # Object files for partes-fit
-FIT_OBJS = partes-fit.o pterr.o stat.o detect_std_time.o stress_timer.o
+FIT_OBJS = partes-fit.o pterr.o stat.o detect_std_time.o get_timer_spec.o
 
 # Targets
 all: partes.x partes-fit.x

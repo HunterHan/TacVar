@@ -44,11 +44,11 @@ _run_sub(uint64_t nsub)
  * @param myrank: my rank
  * @param nrank: number of ranks
  * @param gpt_guess: returned guess gauges/tick
- * @param timer_info: timer info
+ * @param timer_spec: timer info
  * @return 0 on success, 1 on failure
  */
 int
-exponential_guessing(int myrank, int nrank, pt_timer_info_t *timer_info, double *gpt_guess)
+exp_guess_gauge(int myrank, int nrank, pt_timer_spec_t *timer_spec, double *gpt_guess)
 {
     const int max_exp = 10; // nsub_arr=[1,10,...,10^10]
     uint64_t nsub_arr[11], tmet_arr[11];
@@ -72,14 +72,14 @@ exponential_guessing(int myrank, int nrank, pt_timer_info_t *timer_info, double 
 
         /* Run PT_VAR_START_NSTEP steps */
         for (int i = 0; i < PT_VAR_MAX_NSTEP; i++) {
-            tmet = (uint64_t)_run_sub(nsub) / timer_info->tick;
+            tmet = (uint64_t)_run_sub(nsub) / timer_spec->tick;
             tmet_min = tmet < tmet_min ? tmet : tmet_min;
         }
         tmet_arr[step] = tmet_min;
         if (myrank == 0) {
             printf("Rank %d: tmet_min=%" PRIu64 " ticks\n", myrank, tmet_arr[step]);
         }
-        if (tmet_arr[step] * 10 * timer_info->tick > PT_THRES_GUESS_NSUB_TIME && break_flag == 0) {
+        if (tmet_arr[step] * 10 * timer_spec->tick > PT_THRES_GUESS_NSUB_TIME && break_flag == 0) {
             break_flag = 1;
         }
         
@@ -102,7 +102,7 @@ exponential_guessing(int myrank, int nrank, pt_timer_info_t *timer_info, double 
                              ((double)tmet_arr[step] - (double)tmet_arr[step-1]);
             } else {
                 *gpt_guess = (double)nsub_arr[step] / ((double)tmet_arr[step] -
-                             (double)timer_info->ovh);
+                             (double)timer_spec->ovh);
             }
             break;
         }
@@ -116,7 +116,7 @@ exponential_guessing(int myrank, int nrank, pt_timer_info_t *timer_info, double 
  * On rank 0 prints results; returns 0 on success.
  */
 int
-fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t *gauge_info, double gpt_guess)
+fit_sub_time(int myrank, int nrank, pt_timer_spec_t *timer_spec, pt_gauge_info_t *gauge_info, double gpt_guess)
 {
     double hi_gpt, lo_gpt, lo_gpt_bound, hi_gpt_bound, gpt;
     uint64_t dt = DELTA_TICK; // dx=10ticks
@@ -131,9 +131,9 @@ fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t
     gpt = gpt_guess;
     lo_gpt = gpt_guess / 2;  // 0.5 * t_guess
     hi_gpt = gpt_guess * 2;  // 2.0 * t_guess
-    lo_gpt_bound =  timer_info->tick * 
+    lo_gpt_bound =  timer_spec->tick * 
                     ((double)MIN_TRY_HZ / gauge_info->cy_per_op / (double)1e9);
-    hi_gpt_bound =  timer_info->tick * 
+    hi_gpt_bound =  timer_spec->tick * 
                     ((double)MAX_TRY_HZ / gauge_info->cy_per_op / (double)1e9);
     
     // Clamp to reasonable bounds
@@ -161,7 +161,7 @@ fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t
     while (conv_now != conv_target) {
         if (conv_me == 0) {
             dx = (uint64_t)(gpt * dt);
-            nsub_min = (uint64_t)(((double)timer_info->ovh / (double)timer_info->tick) + 1 + dt) * gpt;
+            nsub_min = (uint64_t)(((double)timer_spec->ovh / (double)timer_spec->tick) + 1 + dt) * gpt;
 
             delta = 0;
             delta2 = 0;
@@ -176,15 +176,15 @@ fit_sub_time(int myrank, int nrank, pt_timer_info_t *timer_info, pt_gauge_info_t
             }
         }
         for (uint64_t i = NUM_IGNORE_TIMING; i < xlen; i++) {
-            delta = delta + ((int64_t)pmet[i] - (int64_t)pmet[i-1]) / (int64_t)timer_info->tick - (int64_t)dt;
+            delta = delta + ((int64_t)pmet[i] - (int64_t)pmet[i-1]) / (int64_t)timer_spec->tick - (int64_t)dt;
             delta2 = delta2 + (((int64_t)pmet[i] - (int64_t)pmet[i-1]) / 
-                    (int64_t)timer_info->tick - (int64_t)dt) * (((int64_t)pmet[i] -
-                    (int64_t)pmet[i-1]) / (int64_t)timer_info->tick - (int64_t)dt);
+                    (int64_t)timer_spec->tick - (int64_t)dt) * (((int64_t)pmet[i] -
+                    (int64_t)pmet[i-1]) / (int64_t)timer_spec->tick - (int64_t)dt);
         }
 
         if (delta == 0 || fabs(hi_gpt - lo_gpt) < 0.01*gpt) {
             gauge_info->gpt = gpt;
-            gauge_info->wtime_per_op = timer_info->tick / gpt;
+            gauge_info->wtime_per_op = timer_spec->tick / gpt;
             conv_me = 1;
         } else if (delta < 0) {
             lo_gpt = gpt;

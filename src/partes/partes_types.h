@@ -18,10 +18,10 @@
 #define PT_VAR_MAX_NSTEP 25 // Maximum number of steps to calculate variance
 
 typedef struct {
+    int64_t ta, tb, ntests;
     size_t fsize, rsize;
     int fkern, rkern, timer;
-    int ntests, nsub;
-} pt_test_options_t;
+} pt_opts_t;
 
 
 enum timer_name {
@@ -61,9 +61,9 @@ typedef struct {
 } pt_timer_func_t;
 
 typedef struct {
-    uint64_t tick; // Nanoseconds per tick
-    int64_t ovh; // Overhead per tick
-} pt_timer_info_t;
+    int64_t tick; // Nanoseconds per tick
+    int64_t ovh; // Overhead in ticks
+} pt_timer_spec_t;
 
 typedef struct {
     uint64_t cy_per_op; // Cycles per operation

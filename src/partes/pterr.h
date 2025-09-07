@@ -3,6 +3,12 @@
  * @brief: Error codes for partes.
  */
 
+#define _ptm_handle_error(err, fname) \
+    if (err != PTERR_SUCCESS) {                             \
+        printf("In %s: %s\n", fname, get_pterr_str(err));   \
+        return 0;                                           \
+    }
+
 enum pterr {
     PTERR_SUCCESS = 0,
     PTERR_TIMER_NEGATIVE = 1,
@@ -13,3 +19,4 @@ enum pterr {
 };
 
 const char *get_pterr_str(enum pterr err);
+void pt_mpi_printf(int myrank, int nrank, const char *format, ...);
