@@ -53,16 +53,13 @@ void init_kern_triad(size_t flush_kib, int id, size_t *flush_kib_real) {
 }
 
 void run_kern_triad(int id) {
-    if (id < 0 || id >= kdata_len) return;
     data_triad_t *d = p_kdata_head[id];
-    if (!d || !d->a || !d->b || !d->c) return;
     for (uint64_t i = 0; i < d->npf; i++) {
         d->a[i] = 0.42 * d->b[i] + d->c[i];
     }
 }
 
 void cleanup_kern_triad(int id) {
-    if (id < 0 || id >= kdata_len) return;
     data_triad_t *d = p_kdata_head[id];
     if (!d) return;
     free(d->a);

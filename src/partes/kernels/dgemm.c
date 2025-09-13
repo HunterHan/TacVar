@@ -49,9 +49,7 @@ void init_kern_dgemm(size_t flush_kib, int id, size_t *flush_kib_real) {
 }
 
 void run_kern_dgemm(int id) {
-    if (id < 0 || id >= kdata_len) return;
     data_dgemm_t *d = p_kdata_head[id];
-    if (!d || !d->a || !d->b || !d->c) return;
     uint64_t n = d->sq_npf;
     for (uint64_t i = 0; i < n; i++) {
         for (uint64_t j = 0; j < n; j++) {
@@ -63,7 +61,6 @@ void run_kern_dgemm(int id) {
 }
 
 void cleanup_kern_dgemm(int id) {
-    if (id < 0 || id >= kdata_len) return;
     data_dgemm_t *d = p_kdata_head[id];
     if (!d) return;
     free(d->a);

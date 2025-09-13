@@ -53,22 +53,25 @@ main(int argc, char *argv[])
     _ptm_exit_on_error(parse_ptargs(argc, argv, &ptopts, &ptfuncs), "parse_ptargs");
 
     /* Initialize kernels */
-    if (ptfuncs.init_fkern) {
-        ptfuncs.init_fkern(ptopts.fsize, PT_CALL_ID_FRONT, &ptopts.fsize_real);
-    }
-    
-    if (ptfuncs.init_rkern) {
-        ptfuncs.init_rkern(ptopts.rsize, PT_CALL_ID_REAR, &ptopts.rsize_real);
-    }
+    ptfuncs.init_fkern(ptopts.fsize_a, PT_CALL_ID_TA_FRONT, &ptopts.fsize_real_a);
+    ptfuncs.init_rkern(ptopts.rsize_a, PT_CALL_ID_TA_REAR, &ptopts.rsize_real_a);
+    ptfuncs.init_fkern(ptopts.fsize_b, PT_CALL_ID_TB_FRONT, &ptopts.fsize_real_b);
+    ptfuncs.init_rkern(ptopts.rsize_b, PT_CALL_ID_TB_REAR, &ptopts.rsize_real_b);
 
     if (myrank == 0) {
         printf("Repeat %" PRIi64 " runtime measurements, target gauge time: %" PRIi64 
             "ns, %" PRIi64 "ns\n", ptopts.ntests, ptopts.ta, ptopts.tb);
-        printf("Front kernel: %s, size: %zu KiB, real size: %zu KiB\n", 
-            ptopts.fkern_name, ptopts.fsize, ptopts.fsize_real);
-        printf("Rear kernel: %s, size: %zu KiB, real size: %zu KiB\n", 
-            ptopts.rkern_name, ptopts.rsize, ptopts.rsize_real);
         printf("Timer: %d\n", ptopts.timer);
+        printf("ta flush info:\n");
+        printf("Front kernel: %s, size: %zu KiB, real size: %zu KiB\n", 
+            ptopts.fkern_name, ptopts.fsize_a, ptopts.fsize_real_a);
+        printf("Rear kernel: %s, size: %zu KiB, real size: %zu KiB\n", 
+            ptopts.rkern_name, ptopts.rsize_a, ptopts.rsize_real_a);
+        printf("tb flush info:\n");
+        printf("Front kernel: %s, size: %zu KiB, real size: %zu KiB\n", 
+            ptopts.fkern_name, ptopts.fsize_b, ptopts.fsize_real_b);
+        printf("Rear kernel: %s, size: %zu KiB, real size: %zu KiB\n", 
+            ptopts.rkern_name, ptopts.rsize_b, ptopts.rsize_real_b);
     }
 
     /* Step 1: Get the minimum overhead and time per tick */
@@ -131,20 +134,20 @@ main(int argc, char *argv[])
     for (int i = 0; i < ptopts.ntests; i++) {
         MPI_Barrier(MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
-        ptfuncs.run_fkern(PT_CALL_ID_FRONT);
+        ptfuncs.run_fkern(PT_CALL_ID_TA_FRONT);
         __timer_tick_clock_gettime;
         __gauge_sub_intrinsic(ngs[0]);
         __timer_tock_clock_gettime(p_tmet[0][i]);
-        ptfuncs.run_rkern(PT_CALL_ID_REAR);
+        ptfuncs.run_rkern(PT_CALL_ID_TA_REAR);
     }
     for (int i = 0; i < ptopts.ntests; i++) {
         MPI_Barrier(MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
-        ptfuncs.run_fkern(PT_CALL_ID_FRONT);
+        ptfuncs.run_fkern(PT_CALL_ID_TB_FRONT);
         __timer_tick_clock_gettime;
         __gauge_sub_intrinsic(ngs[1]);
         __timer_tock_clock_gettime(p_tmet[1][i]);
-        ptfuncs.run_rkern(PT_CALL_ID_REAR);
+        ptfuncs.run_rkern(PT_CALL_ID_TB_REAR);
     }
     /* Step 4: Calculate Wasserstein distance */
     for (int i = 0; i < 2; i++) {
@@ -226,13 +229,10 @@ EXIT:
     }
 
     /* Cleanup kernels */
-    if (ptfuncs.cleanup_fkern) {
-        ptfuncs.cleanup_fkern(PT_CALL_ID_FRONT);
-    }
-    
-    if (ptfuncs.cleanup_rkern) {
-        ptfuncs.cleanup_rkern(PT_CALL_ID_REAR);
-    }
+    ptfuncs.cleanup_fkern(PT_CALL_ID_TA_FRONT);
+    ptfuncs.cleanup_rkern(PT_CALL_ID_TA_REAR);
+    ptfuncs.cleanup_fkern(PT_CALL_ID_TB_FRONT);
+    ptfuncs.cleanup_rkern(PT_CALL_ID_TB_REAR);
 
     if (mpi_inited) {
         MPI_Finalize();

@@ -42,14 +42,11 @@ void init_kern_bcast(size_t flush_kib, int id, size_t *flush_kib_real) {
 }
 
 void run_kern_bcast(int id) {
-    if (id < 0 || id >= kdata_len) return;
     data_bcast_t *d = p_kdata_head[id];
-    if (!d || !d->data) return;
     MPI_Bcast(d->data, d->npf, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 }
 
 void cleanup_kern_bcast(int id) {
-    if (id < 0 || id >= kdata_len) return;
     data_bcast_t *d = p_kdata_head[id];
     if (!d) return;
     free(d->data);

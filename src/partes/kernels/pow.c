@@ -43,14 +43,13 @@ void init_kern_pow(size_t flush_kib, int id, size_t *flush_kib_real) {
 }
 
 void run_kern_pow(int id) {
-    if (id < 0 || id >= kdata_len) return;
     data_pow_t *d = p_kdata_head[id];
-    if (!d || !d->a || !d->b) return;
-    for (uint64_t i = 0; i < d->npf; i++) d->a[i] = pow(d->b[i], 1.0001);
+    for (uint64_t i = 0; i < d->npf; i++) {
+        d->a[i] = pow(d->b[i], 1.0001);
+    }
 }
 
 void cleanup_kern_pow(int id) {
-    if (id < 0 || id >= kdata_len) return;
     data_pow_t *d = p_kdata_head[id];
     if (!d) return;
     free(d->a);

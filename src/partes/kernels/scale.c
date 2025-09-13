@@ -42,9 +42,7 @@ void init_kern_scale(size_t flush_kib, int id, size_t *flush_kib_real) {
 }
 
 void run_kern_scale(int id) {
-    if (id < 0 || id >= kdata_len) return;
     data_scale_t *d = p_kdata_head[id];
-    if (!d || !d->a || !d->b) return;
     for (uint64_t i = 0; i < d->npf; i++) {
         d->a[i] = 1.0001 * d->b[i];
         d->b[i] = 1.0001 * d->a[i];
@@ -52,7 +50,6 @@ void run_kern_scale(int id) {
 }
 
 void cleanup_kern_scale(int id) {
-    if (id < 0 || id >= kdata_len) return;
     data_scale_t *d = p_kdata_head[id];
     if (!d) return;
     free(d->a);

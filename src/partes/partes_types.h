@@ -8,8 +8,10 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#define PT_CALL_ID_FRONT 0
-#define PT_CALL_ID_REAR  1
+#define PT_CALL_ID_TA_FRONT 0
+#define PT_CALL_ID_TA_REAR  1
+#define PT_CALL_ID_TB_FRONT 2
+#define PT_CALL_ID_TB_REAR  3
 #define MAX_TRY_HZ 10000000000ULL // 10GHz
 #define MIN_TRY_HZ 100000000ULL   // 100MHz
 #define PT_THRS_GUESS_VAR 0.01 // 1% variance threshold for exponential guessing
@@ -19,8 +21,8 @@
 
 typedef struct {
     int64_t ta, tb, ntests;
-    size_t fsize, rsize;
-    size_t fsize_real, rsize_real;
+    size_t fsize_a, rsize_a, fsize_b, rsize_b;
+    size_t fsize_real_a, rsize_real_a, fsize_real_b, rsize_real_b;
     double cut_p;
     int fkern, rkern, timer, ntiles;
     char fkern_name[128], rkern_name[128], timer_name[128];

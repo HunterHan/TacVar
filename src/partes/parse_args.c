@@ -52,10 +52,14 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs)
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 #endif
     // Initialize with defaults
-    ptopts->fsize = 0;
-    ptopts->rsize = 0;
-    ptopts->fsize_real = 0;
-    ptopts->rsize_real = 0;
+    ptopts->fsize_a = 0;
+    ptopts->rsize_a = 0;
+    ptopts->fsize_b = 0;
+    ptopts->rsize_b = 0;
+    ptopts->fsize_real_a = 0;
+    ptopts->rsize_real_a = 0;
+    ptopts->fsize_real_b = 0;
+    ptopts->rsize_real_b = 0;
     ptopts->fkern = KERN_NONE;
     ptopts->rkern = KERN_NONE;
     ptopts->timer = TIMER_CLOCK_GETTIME;
@@ -144,12 +148,7 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs)
                 }
                 i++; // Skip the next argument
             }
-        } else if (strcmp(argv[i], "--fsize") == 0) {
-            if (i + 1 < argc) {
-                ptopts->fsize = atol(argv[i + 1]);
-                i++; // Skip the next argument
-            }
-        } else if (strcmp(argv[i], "--rkern") == 0) {
+        }  else if (strcmp(argv[i], "--rkern") == 0) {
             if (i + 1 < argc) {
                 if (strcmp(argv[i + 1], "none") == 0) {
                     ptopts->rkern = KERN_NONE;
@@ -205,9 +204,24 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs)
                 }
                 i++; // Skip the next argument
             }
-        } else if (strcmp(argv[i], "--rsize") == 0) {
+        } else if (strcmp(argv[i], "--fsize-a") == 0) {
             if (i + 1 < argc) {
-                ptopts->rsize = atol(argv[i + 1]);
+                ptopts->fsize_a = atol(argv[i + 1]);
+                i++; // Skip the next argument
+            }
+        } else if (strcmp(argv[i], "--rsize-a") == 0) {
+            if (i + 1 < argc) {
+                ptopts->rsize_a = atol(argv[i + 1]);
+                i++; // Skip the next argument
+            }
+        } else if (strcmp(argv[i], "--fsize-b") == 0) {
+            if (i + 1 < argc) {
+                ptopts->fsize_b = atol(argv[i + 1]);
+                i++; // Skip the next argument
+            }
+        } else if (strcmp(argv[i], "--rsize-b") == 0) {
+            if (i + 1 < argc) {
+                ptopts->rsize_b = atol(argv[i + 1]);
                 i++; // Skip the next argument
             }
         } else if (strcmp(argv[i], "--timer") == 0) {
