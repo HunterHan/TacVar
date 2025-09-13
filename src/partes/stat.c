@@ -11,7 +11,9 @@
 #include <math.h>
 #include "pterr.h"
 
-void calc_w(int64_t *tm_arr, uint64_t tm_len, int64_t *sim_cdf, int64_t *w_arr, double *wp_arr, double p_zcut);
+void calc_cdf_i64(int64_t *raw, size_t len, int64_t *cdf, uint64_t ntiles);
+void calc_cdf_u64(uint64_t *raw, size_t len, uint64_t *cdf, uint64_t ntiles);
+int calc_w(int64_t *cdf_a, int64_t *cdf_b, int ntiles, double p_zcut, double *w);
 
 // Variance calculation functions - all return double variance
 int calc_sample_var_1d_fp64(double *arr, size_t n, double *var);
@@ -23,38 +25,79 @@ int calc_sample_var_2d_u64(uint64_t **arr, size_t n1d, size_t n2d, int direction
 
 double stat_linreg_slope_u64(const uint64_t *x, const uint64_t *y, int n);
 double stat_relative_diff(double a, double b);
+static int _comp_u64(const void *a, const void *b);
+static int _comp_i64(const void *a, const void *b);
+
+static int
+_comp_u64(const void *a, const void *b)
+{
+    return (*(const uint64_t *)a > *(const uint64_t *)b) - (*(const uint64_t *)a < *(const uint64_t *)b);
+}
+
+static int
+_comp_i64(const void *a, const void *b)
+{
+    return (*(const int64_t *)a > *(const int64_t *)b) - (*(const int64_t *)a < *(const int64_t *)b);
+}
+
+void
+calc_cdf_i64(int64_t *raw, size_t len, int64_t *cdf, uint64_t ntiles)
+{
+    qsort(raw, len, sizeof(int64_t), _comp_i64);
+    for (uint64_t i = 0; i < ntiles; i++) {
+        uint64_t idx = (uint64_t)((double)i / (double)(ntiles - 1) * (double)(len - 1));
+        if (idx >= len) idx = len - 1;
+        cdf[i] = raw[idx];
+    }
+}
+
+void
+calc_cdf_u64(uint64_t *raw, size_t len, uint64_t *cdf, uint64_t ntiles)
+{
+    qsort(raw, len, sizeof(uint64_t), _comp_u64);
+    for (uint64_t i = 0; i < ntiles; i++) {
+        uint64_t idx = (uint64_t)((double)i / (double)(ntiles - 1) * (double)(len - 1));
+        if (idx >= len) idx = len - 1;
+        cdf[i] = raw[idx];
+    }
+}
+
+
 
 /**
  * @brief Calculate Wasserstein distance between measured and theoretical timing distributions
  */
-void 
-calc_w(int64_t *tm_arr, uint64_t tm_len, int64_t *sim_cdf, int64_t *w_arr, double *wp_arr, double p_zcut) 
+int 
+calc_w(int64_t *cdf_a, int64_t *cdf_b, int ntiles, double p_zcut, double *w) 
 {
-    double w = 0, wm = 0;
-    int wtile = (int)((1 - p_zcut) * 100.0); // Using 100 as NTILE
-    
-    for (int i = 0; i < 100; i++) {
-        int itm = (int)((double)i / 100.0 * tm_len);
-        w_arr[i] = sim_cdf[i] - tm_arr[itm];
-        wp_arr[i] = (double)w_arr[i] / tm_arr[itm];
+    int err = PTERR_SUCCESS;
+    int64_t *w_arr = (int64_t *)malloc(ntiles * sizeof(int64_t));
+    if (w_arr == NULL) {
+        err = PTERR_MALLOC_FAILED;
+        _ptm_exit_on_error(err, "calc_w");
     }
+    *w = 0;
+    int tile_max = (int)((p_zcut) * (double)ntiles);
     
-    for (int i = 0; i < wtile; i++) {
-        int itm = (int)((double)i / 100.0 * tm_len);
-        w += llabs(w_arr[i]);
-        wm += tm_arr[itm];
+    for (int i = 0; i < tile_max; i++) {
+        w_arr[i] = llabs(cdf_a[i] - cdf_b[i]);
     }
-    
-    w = w / (double)wtile;
-    wm = wm / (double)wtile;
-    double er = (wm != 0.0) ? (w / wm) : 0.0;
 
-    printf(" W-Distance=%f  ", w);
-    FILE *fp = fopen("wd.out", "w");
-    if (fp) {
-        fprintf(fp, "%f", w);
-        fclose(fp);
+    for (int i = tile_max; i < ntiles; i++) {
+        w_arr[i] = 0;
     }
+
+    for (int i = 0; i < ntiles; i++) {
+        *w += w_arr[i];
+    }
+    *w /= (double)ntiles;
+
+EXIT:
+    if (w_arr) {
+        free(w_arr);
+        w_arr = NULL;
+    }
+    return err;
 }
 
 int

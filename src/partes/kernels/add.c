@@ -54,6 +54,9 @@ void cleanup_kern_add(int id) {
     if (id < 0 || id >= kdata_len) return;
     data_add_t *d = p_kdata_head[id];
     if (!d) return;
-    free(d->a); free(d->b); free(d->c); free(d);
+    free(d->a);
+    free(d->b);
+    free(d->c);
+    free(d);
     p_kdata_head[id] = NULL;
 }

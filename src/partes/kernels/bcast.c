@@ -52,6 +52,7 @@ void cleanup_kern_bcast(int id) {
     if (id < 0 || id >= kdata_len) return;
     data_bcast_t *d = p_kdata_head[id];
     if (!d) return;
-    free(d->data); free(d);
+    free(d->data);
+    free(d);
     p_kdata_head[id] = NULL;
 }

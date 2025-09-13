@@ -66,6 +66,9 @@ void cleanup_kern_dgemm(int id) {
     if (id < 0 || id >= kdata_len) return;
     data_dgemm_t *d = p_kdata_head[id];
     if (!d) return;
-    free(d->a); free(d->b); free(d->c); free(d);
+    free(d->a);
+    free(d->b);
+    free(d->c);
+    free(d);
     p_kdata_head[id] = NULL;
 }

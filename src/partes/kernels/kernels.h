@@ -7,6 +7,17 @@
 
 #include <stddef.h>
 
+enum kern_name {
+    KERN_NONE = 0,
+    KERN_TRIAD,
+    KERN_SCALE,
+    KERN_COPY,
+    KERN_ADD,
+    KERN_POW,
+    KERN_DGEMM,
+    KERN_MPI_BCAST
+};
+
 // NONE kernel
 void init_kern_none(size_t flush_kib, int id, size_t *flush_kib_real);
 void run_kern_none(int id);

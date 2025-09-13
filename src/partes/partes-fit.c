@@ -17,14 +17,6 @@
 #include "timers/clock_gettime.h"
 #include "gauges/sub.h"
 
-#define _ptm_handle_error(err, msg) do { \
-    if (err != 0) { \
-        fprintf(stderr, "[Error] %s: %s\n", msg, get_pterr_str(err)); \
-        MPI_Finalize(); \
-        exit(err); \
-    } \
-} while(0)
-
 extern int fit_sub_time(int myrank, int nrank, pt_timer_spec_t *timer_spec, pt_gauge_info_t *gauge_info, double gpt_guess);
 extern int get_tspec(int ntest, pt_timer_spec_t *timer_spec);
 extern int exp_guess_gauge(int myrank, int nrank, pt_timer_spec_t *timer_spec, double *gpt_guess);
@@ -167,7 +159,7 @@ main(int argc, char *argv[])
     MPI_Comm_size(MPI_COMM_WORLD, &nrank);
     
     err = get_tspec(10000, &timer_spec);
-    _ptm_handle_error(err, "get_tspec");
+    _ptm_exit_on_error(err, "get_tspec");
     if (myrank == 0) {
         ptick_all = (int64_t *)malloc(nrank * sizeof(int64_t));
         povh_all = (int64_t *)malloc(nrank * sizeof(int64_t));
@@ -269,8 +261,8 @@ main(int argc, char *argv[])
         MPI_Finalize();
         return err;
     }
-    
+EXIT:
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Finalize();
-    return 0;
+    return err;
 }

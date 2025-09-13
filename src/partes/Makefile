@@ -1,35 +1,35 @@
 CC = mpicc
 CFLAGS = -Wall -Wextra -std=c99 -O2
 LDFLAGS = -lm
+MPIFLAGS = -DPTOPT_USE_MPI
 
 # Source directories
 KERNELDIR = kernels
 GAUGEDIR = gauges
 TIMERDIR = timers
 
-# Core object files for partes
-CORE_OBJS = partes.o parse_args.o get_timer_spec.o pterr.o stat.o detect_std_time.o
+# Core object files for partes-mpi (with MPI flag)
+CORE_MPI_OBJS = partes-mpi-mpi.o parse_args-mpi.o get_tspec-mpi.o pterr-mpi.o stat-mpi.o detect_std_time-mpi.o
 
-# Kernel object files
-KERNEL_OBJS = $(KERNELDIR)/none.o $(KERNELDIR)/triad.o $(KERNELDIR)/scale.o \
-              $(KERNELDIR)/copy.o $(KERNELDIR)/add.o $(KERNELDIR)/pow.o \
-              $(KERNELDIR)/dgemm.o $(KERNELDIR)/bcast.o
+# Kernel object files for partes-mpi (with MPI flag)
+KERNEL_MPI_OBJS = $(KERNELDIR)/none-mpi.o $(KERNELDIR)/triad-mpi.o $(KERNELDIR)/scale-mpi.o \
+                  $(KERNELDIR)/copy-mpi.o $(KERNELDIR)/add-mpi.o $(KERNELDIR)/pow-mpi.o \
+                  $(KERNELDIR)/dgemm-mpi.o $(KERNELDIR)/bcast-mpi.o
 
+# Timer object files for partes-mpi (with MPI flag)
+TIMER_MPI_OBJS = $(patsubst $(TIMERDIR)/%.c,$(TIMERDIR)/%-mpi.o,$(wildcard $(TIMERDIR)/*.c))
 
-# Timer object files
-TIMER_OBJS = $(wildcard $(TIMERDIR)/*.o)
+# All object files for partes-mpi
+PARTES_MPI_OBJS = $(CORE_MPI_OBJS) $(KERNEL_MPI_OBJS) $(TIMER_MPI_OBJS)
 
-# All object files for partes
-PARTES_OBJS = $(CORE_OBJS) $(KERNEL_OBJS) $(TIMER_OBJS)
-
-# Object files for partes-fit
-FIT_OBJS = partes-fit.o pterr.o stat.o detect_std_time.o get_timer_spec.o
+# Object files for partes-fit (without MPI flag)
+FIT_OBJS = partes-fit.o pterr.o stat.o detect_std_time.o get_tspec.o
 
 # Targets
-all: partes.x partes-fit.x
+all: partes-mpi.x partes-fit.x
 
-partes.x: $(PARTES_OBJS)
-	$(CC) $(PARTES_OBJS) -o $@ $(LDFLAGS)
+partes-mpi.x: $(PARTES_MPI_OBJS)
+	$(CC) $(PARTES_MPI_OBJS) -o $@ $(LDFLAGS)
 
 partes-fit.x: $(FIT_OBJS)
 	$(CC) $(FIT_OBJS) -o $@ $(LDFLAGS)
@@ -37,11 +37,16 @@ partes-fit.x: $(FIT_OBJS)
 tools:
 	$(MAKE) -C tools
 
+# Compilation rules for MPI versions (with PTOPT_USE_MPI flag)
+%-mpi.o: %.c
+	$(CC) $(CFLAGS) $(MPIFLAGS) -c $< -o $@
+
+# Regular compilation rule (without MPI flag)
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f *.o $(KERNELDIR)/*.o $(TIMERDIR)/*.o partes.x partes-fit.x
+	rm -f *.o *-mpi.o $(KERNELDIR)/*.o $(KERNELDIR)/*-mpi.o $(TIMERDIR)/*.o $(TIMERDIR)/*-mpi.o partes-mpi.x partes-fit.x
 
 cleanall: clean
 	$(MAKE) -C tools clean

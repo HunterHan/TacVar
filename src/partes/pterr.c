@@ -24,11 +24,15 @@ const char *get_pterr_str(enum pterr err) {
         case PTERR_TIMER_OVERFLOW:
             return "Timer overflow detected";
         case PTERR_EXIT_FLAG:
-            return "Exit flag detected";
+            return "Exit";
         case PTERR_MALLOC_FAILED:
             return "Memory allocation failed";
         case PTERR_INVALID_ARGUMENT:
             return "Invalid argument";
+        case PTERR_MISSING_ARGUMENT:
+            return "Missing mandatory argument";
+        case PTERR_FILE_OPEN_FAILED:
+            return "File open failed";
         default:
             return "Unknown error";
     }
@@ -47,6 +51,7 @@ pt_mpi_printf(int myrank, int nrank, const char *format, ...) {
     int robin_flag = 0;
     
     if (myrank == 0) {
+        printf("[Rank %d] ", myrank);
         va_start(args, format);
         vprintf(format, args);
         va_end(args);
@@ -58,7 +63,7 @@ pt_mpi_printf(int myrank, int nrank, const char *format, ...) {
         }
     } else {
         MPI_Recv(&robin_flag, 1, MPI_INT, (myrank - 1 + nrank) % nrank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        
+        printf("[Rank %d] ", myrank);
         va_start(args, format);
         vprintf(format, args);
         va_end(args);

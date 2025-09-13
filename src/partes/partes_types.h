@@ -20,7 +20,10 @@
 typedef struct {
     int64_t ta, tb, ntests;
     size_t fsize, rsize;
-    int fkern, rkern, timer;
+    size_t fsize_real, rsize_real;
+    double cut_p;
+    int fkern, rkern, timer, ntiles;
+    char fkern_name[128], rkern_name[128], timer_name[128];
 } pt_opts_t;
 
 
@@ -30,16 +33,6 @@ enum timer_name {
     TIMER_MPI_WTIME
 };
 
-enum kern_name {
-    KERN_NONE = 0,
-    KERN_TRIAD,
-    KERN_SCALE,
-    KERN_COPY,
-    KERN_ADD,
-    KERN_POW,
-    KERN_DGEMM,
-    KERN_MPI_BCAST
-};
 
 typedef struct {
     /* Front kernel function set */

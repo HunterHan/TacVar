@@ -13,26 +13,68 @@
 #include "./kernels/kernels.h"
 #include "pterr.h"
 
+#ifdef PTOPT_USE_MPI
+
+#include <mpi.h>
+
+#endif
+
+void
+print_usage(char *argv[])
+{
+    int myrank = 0;
+#ifdef PTOPT_USE_MPI
+    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+#endif
+    if (myrank == 0) {
+        printf("Usage: %s [options]\n", argv[0]);
+        printf("Mandatory options:\n");
+        printf("  --ta <ns>           Target gauge time ta in nanoseconds\n");
+        printf("  --tb <ns>           Target gauge time tb in nanoseconds\n");
+        printf("Options:\n");
+        printf("  --ntiles <num>      Number of tiles (default: 100)\n");
+        printf("  --cut-p <p>         p in (0.0, 1.0), cut deviation after p for W calculation (default: 1.0)\n");
+        printf("  --fkern <kernel>    Front kernel (none, triad, scale, copy, add, pow, dgemm, mpi_bcast)\n");
+        printf("  --fsize <size>      Front kernel memory size in KiB\n");
+        printf("  --rkern <kernel>    Rear kernel (none, triad, scale, copy, add, pow, dgemm, mpi_bcast)\n");
+        printf("  --rsize <size>      Rear kernel memory size in KiB\n");
+        printf("  --timer <timer>     Timer method (clock_gettime, mpi_wtime)\n");
+        printf("  --ntests <num>      Number of gauge measurements (default: 1000)\n");
+        printf("  --help, -h          Show this help message\n");
+    }
+}
+
 int
 parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs)
 {
+    int myrank = 0;
+#ifdef PTOPT_USE_MPI
+    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+#endif
     // Initialize with defaults
     ptopts->fsize = 0;
     ptopts->rsize = 0;
+    ptopts->fsize_real = 0;
+    ptopts->rsize_real = 0;
     ptopts->fkern = KERN_NONE;
     ptopts->rkern = KERN_NONE;
     ptopts->timer = TIMER_CLOCK_GETTIME;
     ptopts->ntests = 1000;
-    ptopts->ta = 0;
-    ptopts->tb = 0;
+    ptopts->ntiles = 100;
+    ptopts->cut_p = 1.0;
+    ptopts->ta = INT64_MIN;
+    ptopts->tb = INT64_MIN;
+    strcpy(ptopts->fkern_name, "NONE");
+    strcpy(ptopts->rkern_name, "NONE");
+    strcpy(ptopts->timer_name, "clock_gettime");
 
     // Initialize kernel functions to NULL
-    ptfuncs->init_fkern = NULL;
-    ptfuncs->run_fkern = NULL;
-    ptfuncs->cleanup_fkern = NULL;
-    ptfuncs->init_rkern = NULL;
-    ptfuncs->run_rkern = NULL;
-    ptfuncs->cleanup_rkern = NULL;
+    ptfuncs->init_fkern = init_kern_none;
+    ptfuncs->run_fkern = run_kern_none;
+    ptfuncs->cleanup_fkern = cleanup_kern_none;
+    ptfuncs->init_rkern = init_kern_none;
+    ptfuncs->run_rkern = run_kern_none;
+    ptfuncs->cleanup_rkern = cleanup_kern_none;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--ta") == 0) {
@@ -53,41 +95,49 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs)
                     ptfuncs->init_fkern = init_kern_none;
                     ptfuncs->run_fkern = run_kern_none;
                     ptfuncs->cleanup_fkern = cleanup_kern_none;
+                    strcpy(ptopts->fkern_name, "none");
                 } else if (strcmp(argv[i + 1], "triad") == 0) {
                     ptopts->fkern = KERN_TRIAD;
                     ptfuncs->init_fkern = init_kern_triad;
                     ptfuncs->run_fkern = run_kern_triad;
                     ptfuncs->cleanup_fkern = cleanup_kern_triad;
+                    strcpy(ptopts->fkern_name, "triad");
                 } else if (strcmp(argv[i + 1], "scale") == 0) {
                     ptopts->fkern = KERN_SCALE;
                     ptfuncs->init_fkern = init_kern_scale;
                     ptfuncs->run_fkern = run_kern_scale;
                     ptfuncs->cleanup_fkern = cleanup_kern_scale;
+                    strcpy(ptopts->fkern_name, "scale");
                 } else if (strcmp(argv[i + 1], "copy") == 0) {
                     ptopts->fkern = KERN_COPY;
                     ptfuncs->init_fkern = init_kern_copy;
                     ptfuncs->run_fkern = run_kern_copy;
                     ptfuncs->cleanup_fkern = cleanup_kern_copy;
+                    strcpy(ptopts->fkern_name, "copy");
                 } else if (strcmp(argv[i + 1], "add") == 0) {
                     ptopts->fkern = KERN_ADD;
                     ptfuncs->init_fkern = init_kern_add;
                     ptfuncs->run_fkern = run_kern_add;
                     ptfuncs->cleanup_fkern = cleanup_kern_add;
+                    strcpy(ptopts->fkern_name, "add");
                 } else if (strcmp(argv[i + 1], "pow") == 0) {
                     ptopts->fkern = KERN_POW;
                     ptfuncs->init_fkern = init_kern_pow;
                     ptfuncs->run_fkern = run_kern_pow;
                     ptfuncs->cleanup_fkern = cleanup_kern_pow;
+                    strcpy(ptopts->fkern_name, "pow");
                 } else if (strcmp(argv[i + 1], "dgemm") == 0) {
                     ptopts->fkern = KERN_DGEMM;
                     ptfuncs->init_fkern = init_kern_dgemm;
                     ptfuncs->run_fkern = run_kern_dgemm;
                     ptfuncs->cleanup_fkern = cleanup_kern_dgemm;
+                    strcpy(ptopts->fkern_name, "dgemm");
                 } else if (strcmp(argv[i + 1], "mpi_bcast") == 0) {
                     ptopts->fkern = KERN_MPI_BCAST;
                     ptfuncs->init_fkern = init_kern_bcast;
                     ptfuncs->run_fkern = run_kern_bcast;
                     ptfuncs->cleanup_fkern = cleanup_kern_bcast;
+                    strcpy(ptopts->fkern_name, "mpi_bcast");
                 } else {
                     fprintf(stderr, "Unknown front kernel: %s\n", argv[i + 1]);
                     return 1;
@@ -106,41 +156,49 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs)
                     ptfuncs->init_rkern = init_kern_none;
                     ptfuncs->run_rkern = run_kern_none;
                     ptfuncs->cleanup_rkern = cleanup_kern_none;
+                    strcpy(ptopts->rkern_name, "none");
                 } else if (strcmp(argv[i + 1], "triad") == 0) {
                     ptopts->rkern = KERN_TRIAD;
                     ptfuncs->init_rkern = init_kern_triad;
                     ptfuncs->run_rkern = run_kern_triad;
                     ptfuncs->cleanup_rkern = cleanup_kern_triad;
+                    strcpy(ptopts->rkern_name, "triad");
                 } else if (strcmp(argv[i + 1], "scale") == 0) {
                     ptopts->rkern = KERN_SCALE;
                     ptfuncs->init_rkern = init_kern_scale;
                     ptfuncs->run_rkern = run_kern_scale;
                     ptfuncs->cleanup_rkern = cleanup_kern_scale;
+                    strcpy(ptopts->rkern_name, "scale");
                 } else if (strcmp(argv[i + 1], "copy") == 0) {
                     ptopts->rkern = KERN_COPY;
                     ptfuncs->init_rkern = init_kern_copy;
                     ptfuncs->run_rkern = run_kern_copy;
                     ptfuncs->cleanup_rkern = cleanup_kern_copy;
+                    strcpy(ptopts->rkern_name, "copy");
                 } else if (strcmp(argv[i + 1], "add") == 0) {
                     ptopts->rkern = KERN_ADD;
                     ptfuncs->init_rkern = init_kern_add;
                     ptfuncs->run_rkern = run_kern_add;
                     ptfuncs->cleanup_rkern = cleanup_kern_add;
+                    strcpy(ptopts->rkern_name, "add");
                 } else if (strcmp(argv[i + 1], "pow") == 0) {
                     ptopts->rkern = KERN_POW;
                     ptfuncs->init_rkern = init_kern_pow;
                     ptfuncs->run_rkern = run_kern_pow;
                     ptfuncs->cleanup_rkern = cleanup_kern_pow;
+                    strcpy(ptopts->rkern_name, "pow");
                 } else if (strcmp(argv[i + 1], "dgemm") == 0) {
                     ptopts->rkern = KERN_DGEMM;
                     ptfuncs->init_rkern = init_kern_dgemm;
                     ptfuncs->run_rkern = run_kern_dgemm;
                     ptfuncs->cleanup_rkern = cleanup_kern_dgemm;
+                    strcpy(ptopts->rkern_name, "dgemm");
                 } else if (strcmp(argv[i + 1], "mpi_bcast") == 0) {
                     ptopts->rkern = KERN_MPI_BCAST;
                     ptfuncs->init_rkern = init_kern_bcast;
                     ptfuncs->run_rkern = run_kern_bcast;
                     ptfuncs->cleanup_rkern = cleanup_kern_bcast;
+                    strcpy(ptopts->rkern_name, "mpi_bcast");
                 } else {
                     fprintf(stderr, "Unknown rear kernel: %s\n", argv[i + 1]);
                     return 1;
@@ -156,6 +214,7 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs)
             if (i + 1 < argc) {
                 if (strcmp(argv[i + 1], "clock_gettime") == 0) {
                     ptopts->timer = TIMER_CLOCK_GETTIME;
+                    strcpy(ptopts->timer_name, "clock_gettime");
                 } else if (strcmp(argv[i + 1], "mpi_wtime") == 0) {
                     ptopts->timer = TIMER_MPI_WTIME;
                 } else {
@@ -169,21 +228,39 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs)
                 ptopts->ntests = atoi(argv[i + 1]);
                 i++; // Skip the next argument
             }
+        } else if (strcmp(argv[i], "--ntiles") == 0) {
+            if (i + 1 < argc) {
+                ptopts->ntiles = atoi(argv[i + 1]);
+                i++; // Skip the next argument
+            }
+        } else if (strcmp(argv[i], "--cut-p") == 0) {
+            if (i + 1 < argc) {
+                ptopts->cut_p = atof(argv[i + 1]);
+                i++; // Skip the next argument
+            }
         }  else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
-            printf("Usage: %s [options]\n", argv[0]);
-            printf("Mandatory options:\n");
-            printf("  --ta <ns>           Target gauge time ta in nanoseconds\n");
-            printf("  --tb <ns>           Target gauge time tb in nanoseconds\n");
-            printf("Options:\n");
-            printf("  --fkern <kernel>    Front kernel (none, triad, scale, copy, add, pow, dgemm, mpi_bcast)\n");
-            printf("  --fsize <size>      Front kernel memory size in KiB\n");
-            printf("  --rkern <kernel>    Rear kernel (none, triad, scale, copy, add, pow, dgemm, mpi_bcast)\n");
-            printf("  --rsize <size>      Rear kernel memory size in KiB\n");
-            printf("  --timer <timer>     Timer method (clock_gettime, mpi_wtime)\n");
-            printf("  --ntests <num>      Number of gauge measurements (default: 1000)\n");
-            printf("  --help, -h          Show this help message\n");
+            print_usage(argv);
             return PTERR_EXIT_FLAG;
         }
+    }
+
+    // Check ta, tb
+    if (ptopts->ta == INT64_MIN || ptopts->tb == INT64_MIN) {
+        print_usage(argv);
+        return PTERR_MISSING_ARGUMENT;
+    } else if (ptopts->ta <= 0 || ptopts->tb <= 0) {
+        print_usage(argv);
+        return PTERR_INVALID_ARGUMENT;
+    } else if (ptopts->ta > ptopts->tb) {
+        print_usage(argv);
+        return PTERR_INVALID_ARGUMENT;
+    }
+
+    if (ptopts->cut_p < 0.0 || ptopts->cut_p > 1.0) {
+        if (myrank == 0) {
+            fprintf(stderr, "Error: cut_p must be (0.0, 1.0]\n");
+        }
+        return PTERR_INVALID_ARGUMENT;
     }
 
     return PTERR_SUCCESS;
