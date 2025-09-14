@@ -38,12 +38,16 @@ enum timer_name {
 
 typedef struct {
     /* Front kernel function set */
-    void (*init_fkern)(size_t flush_kib, int id, size_t *flush_kib_real);
+    int (*init_fkern)(size_t flush_kib, int id, size_t *flush_kib_real);
     void (*run_fkern)(int id);
+    void (*update_fkern_key)(int id);
+    int (*check_fkern_key)(int id, int ntests, double *perc_gap);
     void (*cleanup_fkern)(int id);
     /* Rear kernel function set */
-    void (*init_rkern)(size_t flush_kib, int id, size_t *flush_kib_real);
+    int (*init_rkern)(size_t flush_kib, int id, size_t *flush_kib_real);
     void (*run_rkern)(int id);
+    void (*update_rkern_key)(int id);
+    int (*check_rkern_key)(int id, int ntests, double *perc_gap);
     void (*cleanup_rkern)(int id);
 } pt_kern_func_t;
 

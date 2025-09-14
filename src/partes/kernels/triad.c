@@ -6,50 +6,65 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+#include "../pterr.h"
 
 typedef struct {
-    double *a, *b, *c;
+    volatile double *a, *b, *c;
     uint64_t npf;
+    double key;
 } data_triad_t;
 
-static data_triad_t **p_kdata_head = NULL;
-static int kdata_len = 0;
+static data_triad_t *p_kdata_head[4] = {NULL, NULL, NULL, NULL};
 
-void init_kern_triad(size_t flush_kib, int id, size_t *flush_kib_real) {
-    if (id < 0) return;
-    if (id >= kdata_len) {
-        int new_n = id + 1;
-        data_triad_t **p_tmp = (data_triad_t**)realloc(p_kdata_head, new_n * sizeof(*p_tmp));
-        if (!p_tmp) { fprintf(stderr, "[triad] realloc failed id=%d\n", id); return; }
-        for (int i = kdata_len; i < new_n; i++) p_tmp[i] = NULL;
-        p_kdata_head = p_tmp;
-        kdata_len = new_n;
+int init_kern_triad(size_t flush_kib, int id, size_t *flush_kib_real) {
+    int err = PTERR_SUCCESS;
+    if (flush_kib == 0) {
+        return err;
     }
-    if (p_kdata_head[id] != NULL) return; // Already inited
-
-    data_triad_t *st = (data_triad_t*)malloc(sizeof(data_triad_t));
-    if (!st) { fprintf(stderr, "[triad] state alloc failed id=%d\n", id); return; }
-
-    size_t total_bytes = flush_kib * 1024;
-    size_t bytes_per_element = 3 * sizeof(double);
-    st->npf = total_bytes / bytes_per_element;
-
-    if (st->npf > 0) {
-        st->a = (double*)malloc(st->npf * sizeof(double));
-        st->b = (double*)malloc(st->npf * sizeof(double));
-        st->c = (double*)malloc(st->npf * sizeof(double));
-        for (uint64_t i = 0; i < st->npf; i++) {
-            st->a[i] = 1.01;
-            st->b[i] = 1.01;
-            st->c[i] = 1.01;
-        }
-        if (flush_kib_real) *flush_kib_real = (st->npf * bytes_per_element) / 1024;
-    } else {
-        st->a = st->b = st->c = NULL;
-        if (flush_kib_real) *flush_kib_real = 0;
+    
+    p_kdata_head[id] = (data_triad_t*)malloc(sizeof(data_triad_t));
+    if (!p_kdata_head[id]) { 
+        printf("[triad] malloc failed id=%d\n", id);
+        err = PTERR_MALLOC_FAILED;
+        return err; 
     }
+    p_kdata_head[id]->key = 0.0;
 
-    p_kdata_head[id] = st;
+    p_kdata_head[id]->npf = (size_t)((double)flush_kib * 1024 / 3 / sizeof(double));
+    *flush_kib_real = p_kdata_head[id]->npf * sizeof(double) * 3 / 1024;
+    p_kdata_head[id]->a = (double *)malloc(p_kdata_head[id]->npf * sizeof(double));
+    if (p_kdata_head[id]->a == NULL) {
+        printf("[triad] malloc failed id=%d\n", id);
+        err = PTERR_MALLOC_FAILED;
+        return err; 
+    }
+    p_kdata_head[id]->b = (double *)malloc(p_kdata_head[id]->npf * sizeof(double));
+    if (p_kdata_head[id]->b == NULL) {
+        printf("[triad] malloc failed id=%d\n", id);
+        err = PTERR_MALLOC_FAILED;
+        free((void *)p_kdata_head[id]->a);
+        free(p_kdata_head[id]);
+        p_kdata_head[id] = NULL;
+        return err; 
+    }
+    p_kdata_head[id]->c = (double *)malloc(p_kdata_head[id]->npf * sizeof(double));
+    if (p_kdata_head[id]->c == NULL) {
+        printf("[triad] malloc failed id=%d\n", id);
+        err = PTERR_MALLOC_FAILED;
+        free((void *)p_kdata_head[id]->a);
+        free((void *)p_kdata_head[id]->b);
+        free(p_kdata_head[id]);
+        p_kdata_head[id] = NULL;
+        return err; 
+    }
+    for (uint64_t i = 0; i < p_kdata_head[id]->npf; i++) { 
+        p_kdata_head[id]->a[i] = 0.0;
+        p_kdata_head[id]->b[i] = 1.01;
+        p_kdata_head[id]->c[i] = i;
+    }
+    
+    return err;
 }
 
 void run_kern_triad(int id) {
@@ -59,12 +74,44 @@ void run_kern_triad(int id) {
     }
 }
 
+void update_key_triad(int id) {
+    if (p_kdata_head[id] == NULL) return;
+    if (p_kdata_head[id]->npf) {
+        for (uint64_t i = 0; i < p_kdata_head[id]->npf; i++) {
+            p_kdata_head[id]->key += p_kdata_head[id]->a[i];
+            p_kdata_head[id]->a[i] = 0.0;
+        }
+    }
+}
+
+int check_key_triad(int id, int ntests, double *perc_gap) {
+    int err = PTERR_SUCCESS;
+    
+    double key_target = 0;
+    for (uint64_t i = 0; i < p_kdata_head[id]->npf; i++) {
+        key_target += 0.42 * 1.01 + i;
+    }
+    key_target *= ntests;
+    
+    // Calculate absolute percentage deviation
+    if (fabs(key_target) > 1e-12) {
+        *perc_gap = fabs(p_kdata_head[id]->key - key_target) / fabs(key_target) * 100.0;
+    } else {
+        *perc_gap = 0.0;
+    }
+    
+    if (fabs(p_kdata_head[id]->key - key_target) > 1e-6) {
+        err = PTERR_KEY_CHECK_FAILED;
+    }
+    return err;
+}
+
 void cleanup_kern_triad(int id) {
     data_triad_t *d = p_kdata_head[id];
     if (!d) return;
-    free(d->a);
-    free(d->b);
-    free(d->c);
+    free((void *)d->a);
+    free((void *)d->b);
+    free((void *)d->c);
     free(d);
     p_kdata_head[id] = NULL;
 }

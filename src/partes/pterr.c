@@ -33,6 +33,8 @@ const char *get_pterr_str(enum pterr err) {
             return "Missing mandatory argument";
         case PTERR_FILE_OPEN_FAILED:
             return "File open failed";
+        case PTERR_KEY_CHECK_FAILED:
+            return "Key check failed";
         default:
             return "Unknown error";
     }

@@ -18,14 +18,13 @@
 #include "timers/clock_gettime.h"
 #include "./kernels/kernels.h"
 #include "gauges/sub.h"
+#include "stat.h"
 
 
 
 extern int get_tspec(int ntest, pt_timer_spec_t *timer_spec);
 extern int parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs);
-extern int calc_w(int64_t *cdf_a, int64_t *cdf_b, size_t ntiles, double p_zcut, double *w);
 extern int exp_guess_gauge(int myrank, int nrank, pt_timer_spec_t *timer_spec, double *gpt_guess);
-extern void calc_cdf_i64(int64_t *raw, size_t len, int64_t *cdf, uint64_t ntiles);
 
 int 
 main(int argc, char *argv[]) 
@@ -53,10 +52,14 @@ main(int argc, char *argv[])
     _ptm_exit_on_error(parse_ptargs(argc, argv, &ptopts, &ptfuncs), "parse_ptargs");
 
     /* Initialize kernels */
-    ptfuncs.init_fkern(ptopts.fsize_a, PT_CALL_ID_TA_FRONT, &ptopts.fsize_real_a);
-    ptfuncs.init_rkern(ptopts.rsize_a, PT_CALL_ID_TA_REAR, &ptopts.rsize_real_a);
-    ptfuncs.init_fkern(ptopts.fsize_b, PT_CALL_ID_TB_FRONT, &ptopts.fsize_real_b);
-    ptfuncs.init_rkern(ptopts.rsize_b, PT_CALL_ID_TB_REAR, &ptopts.rsize_real_b);
+    err = ptfuncs.init_fkern(ptopts.fsize_a, PT_CALL_ID_TA_FRONT, &ptopts.fsize_real_a);
+    _ptm_exit_on_error(err, "init_fkern_a");
+    err = ptfuncs.init_rkern(ptopts.rsize_a, PT_CALL_ID_TA_REAR, &ptopts.rsize_real_a);
+    _ptm_exit_on_error(err, "init_rkern_a");
+    err = ptfuncs.init_fkern(ptopts.fsize_b, PT_CALL_ID_TB_FRONT, &ptopts.fsize_real_b);
+    _ptm_exit_on_error(err, "init_fkern_b");
+    err = ptfuncs.init_rkern(ptopts.rsize_b, PT_CALL_ID_TB_REAR, &ptopts.rsize_real_b);
+    _ptm_exit_on_error(err, "init_rkern_b");
 
     if (myrank == 0) {
         printf("Repeat %" PRIi64 " runtime measurements, target gauge time: %" PRIi64 
@@ -139,7 +142,10 @@ main(int argc, char *argv[])
         __gauge_sub_intrinsic(ngs[0]);
         __timer_tock_clock_gettime(p_tmet[0][i]);
         ptfuncs.run_rkern(PT_CALL_ID_TA_REAR);
+        ptfuncs.update_fkern_key(PT_CALL_ID_TA_FRONT);
+        ptfuncs.update_rkern_key(PT_CALL_ID_TA_REAR);
     }
+
     for (int i = 0; i < ptopts.ntests; i++) {
         MPI_Barrier(MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
@@ -148,6 +154,26 @@ main(int argc, char *argv[])
         __gauge_sub_intrinsic(ngs[1]);
         __timer_tock_clock_gettime(p_tmet[1][i]);
         ptfuncs.run_rkern(PT_CALL_ID_TB_REAR);
+        ptfuncs.update_fkern_key(PT_CALL_ID_TB_FRONT);
+        ptfuncs.update_rkern_key(PT_CALL_ID_TB_REAR);
+    }
+    double perc_gap_ta_front, perc_gap_ta_rear, perc_gap_tb_front, perc_gap_tb_rear;
+    
+    ptfuncs.check_fkern_key(PT_CALL_ID_TA_FRONT, ptopts.ntests, &perc_gap_ta_front);
+    if (myrank == 0) {
+        printf("TA Front kernel percentage gap: %f\n", perc_gap_ta_front);
+    }
+    ptfuncs.check_rkern_key(PT_CALL_ID_TA_REAR, ptopts.ntests, &perc_gap_ta_rear);
+    if (myrank == 0) {
+        printf("TA Rear kernel percentage gap: %f\n", perc_gap_ta_rear);
+    }
+    ptfuncs.check_fkern_key(PT_CALL_ID_TB_FRONT, ptopts.ntests, &perc_gap_tb_front);
+    if (myrank == 0) {
+        printf("TB Front kernel percentage gap: %f\n", perc_gap_tb_front);
+    }
+    ptfuncs.check_rkern_key(PT_CALL_ID_TB_REAR, ptopts.ntests, &perc_gap_tb_rear);
+    if (myrank == 0) {
+        printf("TB Rear kernel percentage gap: %f\n", perc_gap_tb_rear);
     }
     /* Step 4: Calculate Wasserstein distance */
     for (int i = 0; i < 2; i++) {
@@ -193,7 +219,7 @@ main(int argc, char *argv[])
         fp_a = NULL;
         _ptm_exit_on_error(err, "main:fopen");
     }
-    for (int i = 0; i < ptopts.ntiles; i++) {
+    for (int i = 0; i < ptopts.ntests; i++) {
         fprintf(fp_a, "%" PRIi64 "\n", p_tmet[0][i]);
         fprintf(fp_b, "%" PRIi64 "\n", p_tmet[1][i]);
     }

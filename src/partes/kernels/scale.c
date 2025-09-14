@@ -1,59 +1,105 @@
 /**
  * @file scale.c
- * @brief: SCALE kernel - a[i] = 1.0001 * b[i]; b[i] = 1.0001 * a[i]
+ * @brief: SCALE kernel - a[i] = 1.0001 * b[i]
  */
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+#include "../pterr.h"
 
 typedef struct {
-    double *a, *b;
+    volatile double *a, *b;
     uint64_t npf;
+    double key;
 } data_scale_t;
 
-static data_scale_t **p_kdata_head = NULL;
-static int kdata_len = 0;
+static data_scale_t *p_kdata_head[4] = {NULL, NULL, NULL, NULL};
 
-void init_kern_scale(size_t flush_kib, int id, size_t *flush_kib_real) {
-    if (id < 0) return;
-    if (id >= kdata_len) {
-        int new_n = id + 1;
-        data_scale_t **p_tmp = (data_scale_t**)realloc(p_kdata_head, new_n * sizeof(*p_tmp));
-        if (!p_tmp) { fprintf(stderr, "[scale] realloc failed id=%d\n", id); return; }
-        for (int i = kdata_len; i < new_n; i++) p_tmp[i] = NULL;
-        p_kdata_head = p_tmp; kdata_len = new_n;
+int init_kern_scale(size_t flush_kib, int id, size_t *flush_kib_real) {
+    int err = PTERR_SUCCESS;
+    if (flush_kib == 0) {
+        return err;
     }
-    if (p_kdata_head[id] != NULL) return;
+    
+    p_kdata_head[id] = (data_scale_t*)malloc(sizeof(data_scale_t));
+    if (!p_kdata_head[id]) { 
+        printf("[scale] malloc failed id=%d\n", id);
+        err = PTERR_MALLOC_FAILED;
+        return err; 
+    }
+    p_kdata_head[id]->key = 0.0;
 
-    data_scale_t *st = (data_scale_t*)malloc(sizeof(data_scale_t));
-    if (!st) { fprintf(stderr, "[scale] state alloc failed id=%d\n", id); return; }
-
-    size_t total_bytes = flush_kib * 1024;
-    size_t bytes_per_element = 2 * sizeof(double);
-    st->npf = total_bytes / bytes_per_element;
-    if (st->npf > 0) {
-        st->a = (double*)malloc(st->npf * sizeof(double));
-        st->b = (double*)malloc(st->npf * sizeof(double));
-        for (uint64_t i = 0; i < st->npf; i++) { st->a[i] = 1.01; st->b[i] = 1.01; }
-        if (flush_kib_real) *flush_kib_real = (st->npf * bytes_per_element) / 1024;
-    } else { st->a = st->b = NULL; if (flush_kib_real) *flush_kib_real = 0; }
-    p_kdata_head[id] = st;
+    p_kdata_head[id]->npf = (size_t)((double)flush_kib * 1024 / 2 / sizeof(double));
+    *flush_kib_real = p_kdata_head[id]->npf * sizeof(double) * 2 / 1024;
+    p_kdata_head[id]->a = (double *)malloc(p_kdata_head[id]->npf * sizeof(double));
+    if (p_kdata_head[id]->a == NULL) {
+        printf("[scale] malloc failed id=%d\n", id);
+        err = PTERR_MALLOC_FAILED;
+        return err; 
+    }
+    p_kdata_head[id]->b = (double *)malloc(p_kdata_head[id]->npf * sizeof(double));
+    if (p_kdata_head[id]->b == NULL) {
+        printf("[scale] malloc failed id=%d\n", id);
+        err = PTERR_MALLOC_FAILED;
+        free((void *)p_kdata_head[id]->a);
+        free(p_kdata_head[id]);
+        p_kdata_head[id] = NULL;
+        return err; 
+    }
+    for (uint64_t i = 0; i < p_kdata_head[id]->npf; i++) { 
+        p_kdata_head[id]->a[i] = 0.0;
+        p_kdata_head[id]->b[i] = 1.01 + i;
+    }
+    
+    return err;
 }
 
 void run_kern_scale(int id) {
     data_scale_t *d = p_kdata_head[id];
     for (uint64_t i = 0; i < d->npf; i++) {
         d->a[i] = 1.0001 * d->b[i];
-        d->b[i] = 1.0001 * d->a[i];
     }
+}
+
+void update_key_scale(int id) {
+    if (p_kdata_head[id] == NULL) return;
+    if (p_kdata_head[id]->npf) {
+        for (uint64_t i = 0; i < p_kdata_head[id]->npf; i++) {
+            p_kdata_head[id]->key += p_kdata_head[id]->a[i];
+            p_kdata_head[id]->a[i] = 0.0;
+        }
+    }
+}
+
+int check_key_scale(int id, int ntests, double *perc_gap) {
+    int err = PTERR_SUCCESS;
+    
+    double key_target = 0;
+    for (uint64_t i = 0; i < p_kdata_head[id]->npf; i++) {
+        key_target += 1.0001 * (1.01 + i);
+    }
+    key_target *= ntests;
+    
+    // Calculate absolute percentage deviation
+    if (fabs(key_target) > 1e-12) {
+        *perc_gap = fabs(p_kdata_head[id]->key - key_target) / fabs(key_target) * 100.0;
+    } else {
+        *perc_gap = 0.0;
+    }
+    
+    if (fabs(p_kdata_head[id]->key - key_target) > 1e-6) {
+        err = PTERR_KEY_CHECK_FAILED;
+    }
+    return err;
 }
 
 void cleanup_kern_scale(int id) {
     data_scale_t *d = p_kdata_head[id];
     if (!d) return;
-    free(d->a);
-    free(d->b);
+    free((void *)d->a);
+    free((void *)d->b);
     free(d);
     p_kdata_head[id] = NULL;
 }

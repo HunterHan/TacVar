@@ -98,49 +98,65 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs)
                     ptopts->fkern = KERN_NONE;
                     ptfuncs->init_fkern = init_kern_none;
                     ptfuncs->run_fkern = run_kern_none;
+                    ptfuncs->update_fkern_key = update_key_none;
+                    ptfuncs->check_fkern_key = check_key_none;
                     ptfuncs->cleanup_fkern = cleanup_kern_none;
                     strcpy(ptopts->fkern_name, "none");
                 } else if (strcmp(argv[i + 1], "triad") == 0) {
                     ptopts->fkern = KERN_TRIAD;
                     ptfuncs->init_fkern = init_kern_triad;
                     ptfuncs->run_fkern = run_kern_triad;
+                    ptfuncs->update_fkern_key = update_key_triad;
+                    ptfuncs->check_fkern_key = check_key_triad;
                     ptfuncs->cleanup_fkern = cleanup_kern_triad;
                     strcpy(ptopts->fkern_name, "triad");
                 } else if (strcmp(argv[i + 1], "scale") == 0) {
                     ptopts->fkern = KERN_SCALE;
                     ptfuncs->init_fkern = init_kern_scale;
                     ptfuncs->run_fkern = run_kern_scale;
+                    ptfuncs->update_fkern_key = update_key_scale;
+                    ptfuncs->check_fkern_key = check_key_scale;
                     ptfuncs->cleanup_fkern = cleanup_kern_scale;
                     strcpy(ptopts->fkern_name, "scale");
                 } else if (strcmp(argv[i + 1], "copy") == 0) {
                     ptopts->fkern = KERN_COPY;
                     ptfuncs->init_fkern = init_kern_copy;
                     ptfuncs->run_fkern = run_kern_copy;
+                    ptfuncs->update_fkern_key = update_key_copy;
+                    ptfuncs->check_fkern_key = check_key_copy;
                     ptfuncs->cleanup_fkern = cleanup_kern_copy;
                     strcpy(ptopts->fkern_name, "copy");
                 } else if (strcmp(argv[i + 1], "add") == 0) {
                     ptopts->fkern = KERN_ADD;
                     ptfuncs->init_fkern = init_kern_add;
                     ptfuncs->run_fkern = run_kern_add;
+                    ptfuncs->update_fkern_key = update_key_add;
+                    ptfuncs->check_fkern_key = check_key_add;
                     ptfuncs->cleanup_fkern = cleanup_kern_add;
                     strcpy(ptopts->fkern_name, "add");
                 } else if (strcmp(argv[i + 1], "pow") == 0) {
                     ptopts->fkern = KERN_POW;
                     ptfuncs->init_fkern = init_kern_pow;
                     ptfuncs->run_fkern = run_kern_pow;
+                    ptfuncs->update_fkern_key = update_key_pow;
+                    ptfuncs->check_fkern_key = check_key_pow;
                     ptfuncs->cleanup_fkern = cleanup_kern_pow;
                     strcpy(ptopts->fkern_name, "pow");
                 } else if (strcmp(argv[i + 1], "dgemm") == 0) {
                     ptopts->fkern = KERN_DGEMM;
                     ptfuncs->init_fkern = init_kern_dgemm;
                     ptfuncs->run_fkern = run_kern_dgemm;
+                    ptfuncs->update_fkern_key = update_key_dgemm;
+                    ptfuncs->check_fkern_key = check_key_dgemm;
                     ptfuncs->cleanup_fkern = cleanup_kern_dgemm;
                     strcpy(ptopts->fkern_name, "dgemm");
                 } else if (strcmp(argv[i + 1], "mpi_bcast") == 0) {
                     ptopts->fkern = KERN_MPI_BCAST;
-                    ptfuncs->init_fkern = init_kern_bcast;
-                    ptfuncs->run_fkern = run_kern_bcast;
-                    ptfuncs->cleanup_fkern = cleanup_kern_bcast;
+                    ptfuncs->init_fkern = init_kern_mpi_bcast;
+                    ptfuncs->run_fkern = run_kern_mpi_bcast;
+                    ptfuncs->update_fkern_key = update_key_mpi_bcast;
+                    ptfuncs->check_fkern_key = check_key_mpi_bcast;
+                    ptfuncs->cleanup_fkern = cleanup_kern_mpi_bcast;
                     strcpy(ptopts->fkern_name, "mpi_bcast");
                 } else {
                     fprintf(stderr, "Unknown front kernel: %s\n", argv[i + 1]);
@@ -154,49 +170,65 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs)
                     ptopts->rkern = KERN_NONE;
                     ptfuncs->init_rkern = init_kern_none;
                     ptfuncs->run_rkern = run_kern_none;
+                    ptfuncs->update_rkern_key = update_key_none;
+                    ptfuncs->check_rkern_key = check_key_none;
                     ptfuncs->cleanup_rkern = cleanup_kern_none;
                     strcpy(ptopts->rkern_name, "none");
                 } else if (strcmp(argv[i + 1], "triad") == 0) {
                     ptopts->rkern = KERN_TRIAD;
                     ptfuncs->init_rkern = init_kern_triad;
                     ptfuncs->run_rkern = run_kern_triad;
+                    ptfuncs->update_rkern_key = update_key_triad;
+                    ptfuncs->check_rkern_key = check_key_triad;
                     ptfuncs->cleanup_rkern = cleanup_kern_triad;
                     strcpy(ptopts->rkern_name, "triad");
                 } else if (strcmp(argv[i + 1], "scale") == 0) {
                     ptopts->rkern = KERN_SCALE;
                     ptfuncs->init_rkern = init_kern_scale;
                     ptfuncs->run_rkern = run_kern_scale;
+                    ptfuncs->update_rkern_key = update_key_scale;
+                    ptfuncs->check_rkern_key = check_key_scale;
                     ptfuncs->cleanup_rkern = cleanup_kern_scale;
                     strcpy(ptopts->rkern_name, "scale");
                 } else if (strcmp(argv[i + 1], "copy") == 0) {
                     ptopts->rkern = KERN_COPY;
                     ptfuncs->init_rkern = init_kern_copy;
                     ptfuncs->run_rkern = run_kern_copy;
+                    ptfuncs->update_rkern_key = update_key_copy;
+                    ptfuncs->check_rkern_key = check_key_copy;
                     ptfuncs->cleanup_rkern = cleanup_kern_copy;
                     strcpy(ptopts->rkern_name, "copy");
                 } else if (strcmp(argv[i + 1], "add") == 0) {
                     ptopts->rkern = KERN_ADD;
                     ptfuncs->init_rkern = init_kern_add;
                     ptfuncs->run_rkern = run_kern_add;
+                    ptfuncs->update_rkern_key = update_key_add;
+                    ptfuncs->check_rkern_key = check_key_add;
                     ptfuncs->cleanup_rkern = cleanup_kern_add;
                     strcpy(ptopts->rkern_name, "add");
                 } else if (strcmp(argv[i + 1], "pow") == 0) {
                     ptopts->rkern = KERN_POW;
                     ptfuncs->init_rkern = init_kern_pow;
                     ptfuncs->run_rkern = run_kern_pow;
+                    ptfuncs->update_rkern_key = update_key_pow;
+                    ptfuncs->check_rkern_key = check_key_pow;
                     ptfuncs->cleanup_rkern = cleanup_kern_pow;
                     strcpy(ptopts->rkern_name, "pow");
                 } else if (strcmp(argv[i + 1], "dgemm") == 0) {
                     ptopts->rkern = KERN_DGEMM;
                     ptfuncs->init_rkern = init_kern_dgemm;
                     ptfuncs->run_rkern = run_kern_dgemm;
+                    ptfuncs->update_rkern_key = update_key_dgemm;
+                    ptfuncs->check_rkern_key = check_key_dgemm;
                     ptfuncs->cleanup_rkern = cleanup_kern_dgemm;
                     strcpy(ptopts->rkern_name, "dgemm");
                 } else if (strcmp(argv[i + 1], "mpi_bcast") == 0) {
                     ptopts->rkern = KERN_MPI_BCAST;
-                    ptfuncs->init_rkern = init_kern_bcast;
-                    ptfuncs->run_rkern = run_kern_bcast;
-                    ptfuncs->cleanup_rkern = cleanup_kern_bcast;
+                    ptfuncs->init_rkern = init_kern_mpi_bcast;
+                    ptfuncs->run_rkern = run_kern_mpi_bcast;
+                    ptfuncs->update_rkern_key = update_key_mpi_bcast;
+                    ptfuncs->check_rkern_key = check_key_mpi_bcast;
+                    ptfuncs->cleanup_rkern = cleanup_kern_mpi_bcast;
                     strcpy(ptopts->rkern_name, "mpi_bcast");
                 } else {
                     fprintf(stderr, "Unknown rear kernel: %s\n", argv[i + 1]);

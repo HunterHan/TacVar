@@ -1,84 +1,78 @@
 /**
- * @file pow.c
- * @brief: POW kernel - a[i] = pow(b[i], 1.0001)
+ * @file mpi_bcast.c
+ * @brief: MPI_BCAST kernel - MPI broadcast operation
  */
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include "mpi.h"
 #include "../pterr.h"
 
 typedef struct {
-    volatile double *a, *b;
+    volatile double *a;
     uint64_t npf;
     double key;
-} data_pow_t;
+} data_mpi_bcast_t;
 
-static data_pow_t *p_kdata_head[4] = {NULL, NULL, NULL, NULL};
+static data_mpi_bcast_t *p_kdata_head[4] = {NULL, NULL, NULL, NULL};
+static int myrank = 0;
 
-int init_kern_pow(size_t flush_kib, int id, size_t *flush_kib_real) {
+int init_kern_mpi_bcast(size_t flush_kib, int id, size_t *flush_kib_real) {
     int err = PTERR_SUCCESS;
     if (flush_kib == 0) {
         return err;
     }
     
-    p_kdata_head[id] = (data_pow_t*)malloc(sizeof(data_pow_t));
+    p_kdata_head[id] = (data_mpi_bcast_t*)malloc(sizeof(data_mpi_bcast_t));
     if (!p_kdata_head[id]) { 
-        printf("[pow] malloc failed id=%d\n", id);
+        printf("[mpi_bcast] malloc failed id=%d\n", id);
         err = PTERR_MALLOC_FAILED;
         return err; 
     }
     p_kdata_head[id]->key = 0.0;
 
-    p_kdata_head[id]->npf = (size_t)((double)flush_kib * 1024 / 2 / sizeof(double));
-    *flush_kib_real = p_kdata_head[id]->npf * sizeof(double) * 2 / 1024;
+    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+    p_kdata_head[id]->npf = (size_t)((double)flush_kib * 1024 / sizeof(double));
+    *flush_kib_real = p_kdata_head[id]->npf * sizeof(double) / 1024;
     p_kdata_head[id]->a = (double *)malloc(p_kdata_head[id]->npf * sizeof(double));
     if (p_kdata_head[id]->a == NULL) {
-        printf("[pow] malloc failed id=%d\n", id);
+        printf("[mpi_bcast] malloc failed id=%d\n", id);
         err = PTERR_MALLOC_FAILED;
-        return err; 
-    }
-    p_kdata_head[id]->b = (double *)malloc(p_kdata_head[id]->npf * sizeof(double));
-    if (p_kdata_head[id]->b == NULL) {
-        printf("[pow] malloc failed id=%d\n", id);
-        err = PTERR_MALLOC_FAILED;
-        free((void *)p_kdata_head[id]->a);
         free(p_kdata_head[id]);
         p_kdata_head[id] = NULL;
         return err; 
     }
     for (uint64_t i = 0; i < p_kdata_head[id]->npf; i++) { 
-        p_kdata_head[id]->a[i] = 0.0;
-        p_kdata_head[id]->b[i] = 1.01 + i * 0.001;
+        p_kdata_head[id]->a[i] = 1.01 + i + myrank;
     }
-    
+
     return err;
 }
 
-void run_kern_pow(int id) {
-    data_pow_t *d = p_kdata_head[id];
-    for (uint64_t i = 0; i < d->npf; i++) {
-        d->a[i] = pow(d->b[i], 1.0001);
+void run_kern_mpi_bcast(int id) {
+    data_mpi_bcast_t *d = p_kdata_head[id];
+    if (d->npf) {
+        MPI_Bcast((void *)d->a, d->npf, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     }
 }
 
-void update_key_pow(int id) {
+void update_key_mpi_bcast(int id) {
     if (p_kdata_head[id] == NULL) return;
     if (p_kdata_head[id]->npf) {
         for (uint64_t i = 0; i < p_kdata_head[id]->npf; i++) {
             p_kdata_head[id]->key += p_kdata_head[id]->a[i];
-            p_kdata_head[id]->a[i] = 0.0;
         }
     }
 }
 
-int check_key_pow(int id, int ntests, double *perc_gap) {
+int check_key_mpi_bcast(int id, int ntests, double *perc_gap) {
     int err = PTERR_SUCCESS;
     
     double key_target = 0;
     for (uint64_t i = 0; i < p_kdata_head[id]->npf; i++) {
-        key_target += pow(1.01 + i * 0.001, 1.0001);
+        key_target += 1.01 + i;
     }
     key_target *= ntests;
     
@@ -95,11 +89,10 @@ int check_key_pow(int id, int ntests, double *perc_gap) {
     return err;
 }
 
-void cleanup_kern_pow(int id) {
-    data_pow_t *d = p_kdata_head[id];
+void cleanup_kern_mpi_bcast(int id) {
+    data_mpi_bcast_t *d = p_kdata_head[id];
     if (!d) return;
     free((void *)d->a);
-    free((void *)d->b);
     free(d);
     p_kdata_head[id] = NULL;
 }

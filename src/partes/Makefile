@@ -14,7 +14,7 @@ CORE_MPI_OBJS = partes-mpi-mpi.o parse_args-mpi.o get_tspec-mpi.o pterr-mpi.o st
 # Kernel object files for partes-mpi (with MPI flag)
 KERNEL_MPI_OBJS = $(KERNELDIR)/none-mpi.o $(KERNELDIR)/triad-mpi.o $(KERNELDIR)/scale-mpi.o \
                   $(KERNELDIR)/copy-mpi.o $(KERNELDIR)/add-mpi.o $(KERNELDIR)/pow-mpi.o \
-                  $(KERNELDIR)/dgemm-mpi.o $(KERNELDIR)/bcast-mpi.o
+                  $(KERNELDIR)/dgemm-mpi.o $(KERNELDIR)/mpi_bcast-mpi.o
 
 # Timer object files for partes-mpi (with MPI flag)
 TIMER_MPI_OBJS = $(patsubst $(TIMERDIR)/%.c,$(TIMERDIR)/%-mpi.o,$(wildcard $(TIMERDIR)/*.c))

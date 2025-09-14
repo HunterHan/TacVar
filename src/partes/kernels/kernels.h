@@ -19,43 +19,59 @@ enum kern_name {
 };
 
 // NONE kernel
-void init_kern_none(size_t flush_kib, int id, size_t *flush_kib_real);
+int init_kern_none(size_t flush_kib, int id, size_t *flush_kib_real);
 void run_kern_none(int id);
+void update_key_none(int id);
+int check_key_none(int id, int ntests, double *perc_gap);
 void cleanup_kern_none(int id);
 
 // TRIAD kernel
-void init_kern_triad(size_t flush_kib, int id, size_t *flush_kib_real);
+int init_kern_triad(size_t flush_kib, int id, size_t *flush_kib_real);
 void run_kern_triad(int id);
+void update_key_triad(int id);
+int check_key_triad(int id, int ntests, double *perc_gap);
 void cleanup_kern_triad(int id);
 
 // SCALE kernel
-void init_kern_scale(size_t flush_kib, int id, size_t *flush_kib_real);
+int init_kern_scale(size_t flush_kib, int id, size_t *flush_kib_real);
+void update_key_scale(int id);
+int check_key_scale(int id, int ntests, double *perc_gap);
 void run_kern_scale(int id);
 void cleanup_kern_scale(int id);
 
 // COPY kernel
-void init_kern_copy(size_t flush_kib, int id, size_t *flush_kib_real);
+int init_kern_copy(size_t flush_kib, int id, size_t *flush_kib_real);
+void update_key_copy(int id);
+int check_key_copy(int id, int ntests, double *perc_gap);
 void run_kern_copy(int id);
 void cleanup_kern_copy(int id);
 
 // ADD kernel
-void init_kern_add(size_t flush_kib, int id, size_t *flush_kib_real);
+int init_kern_add(size_t flush_kib, int id, size_t *flush_kib_real);
+void update_key_add(int id);
+int check_key_add(int id, int ntests, double *perc_gap);
 void run_kern_add(int id);
 void cleanup_kern_add(int id);
 
 // POW kernel
-void init_kern_pow(size_t flush_kib, int id, size_t *flush_kib_real);
+int init_kern_pow(size_t flush_kib, int id, size_t *flush_kib_real);
+void update_key_pow(int id);
+int check_key_pow(int id, int ntests, double *perc_gap);
 void run_kern_pow(int id);
 void cleanup_kern_pow(int id);
 
 // DGEMM kernel
-void init_kern_dgemm(size_t flush_kib, int id, size_t *flush_kib_real);
+int init_kern_dgemm(size_t flush_kib, int id, size_t *flush_kib_real);
+void update_key_dgemm(int id);
+int check_key_dgemm(int id, int ntests, double *perc_gap);
 void run_kern_dgemm(int id);
 void cleanup_kern_dgemm(int id);
 
-// BCAST kernel
-void init_kern_bcast(size_t flush_kib, int id, size_t *flush_kib_real);
-void run_kern_bcast(int id);
-void cleanup_kern_bcast(int id);
+// MPI_BCAST kernel
+int init_kern_mpi_bcast(size_t flush_kib, int id, size_t *flush_kib_real);
+void update_key_mpi_bcast(int id);
+int check_key_mpi_bcast(int id, int ntests, double *perc_gap);
+void run_kern_mpi_bcast(int id);
+void cleanup_kern_mpi_bcast(int id);
 
 #endif
