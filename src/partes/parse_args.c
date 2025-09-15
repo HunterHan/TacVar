@@ -79,6 +79,10 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs)
     ptfuncs->init_rkern = init_kern_none;
     ptfuncs->run_rkern = run_kern_none;
     ptfuncs->cleanup_rkern = cleanup_kern_none;
+    ptfuncs->update_fkern_key = update_key_none;
+    ptfuncs->update_rkern_key = update_key_none;
+    ptfuncs->check_fkern_key = check_key_none;
+    ptfuncs->check_rkern_key = check_key_none;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--ta") == 0) {

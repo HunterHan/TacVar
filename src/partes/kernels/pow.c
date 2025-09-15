@@ -20,6 +20,7 @@ static data_pow_t *p_kdata_head[4] = {NULL, NULL, NULL, NULL};
 int init_kern_pow(size_t flush_kib, int id, size_t *flush_kib_real) {
     int err = PTERR_SUCCESS;
     if (flush_kib == 0) {
+        *flush_kib_real = 0;
         return err;
     }
     

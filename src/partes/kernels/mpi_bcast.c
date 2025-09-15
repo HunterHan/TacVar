@@ -22,6 +22,7 @@ static int myrank = 0;
 int init_kern_mpi_bcast(size_t flush_kib, int id, size_t *flush_kib_real) {
     int err = PTERR_SUCCESS;
     if (flush_kib == 0) {
+        *flush_kib_real = 0;
         return err;
     }
     

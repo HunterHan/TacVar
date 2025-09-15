@@ -20,7 +20,9 @@
 #include "gauges/sub.h"
 #include "stat.h"
 
-
+#ifndef __PTM_NOP
+#define __PTM_NOP __asm__ __volatile__ ("nop");
+#endif
 
 extern int get_tspec(int ntest, pt_timer_spec_t *timer_spec);
 extern int parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs);
@@ -134,6 +136,7 @@ main(int argc, char *argv[])
 
     __timer_init_clock_gettime;
     MPI_Barrier(MPI_COMM_WORLD);
+    __PTM_NOP;
     for (int i = 0; i < ptopts.ntests; i++) {
         MPI_Barrier(MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
@@ -161,19 +164,19 @@ main(int argc, char *argv[])
     
     ptfuncs.check_fkern_key(PT_CALL_ID_TA_FRONT, ptopts.ntests, &perc_gap_ta_front);
     if (myrank == 0) {
-        printf("TA Front kernel percentage gap: %f\n", perc_gap_ta_front);
+        printf("TA Front kernel percentage gap: %f%%\n", perc_gap_ta_front);
     }
     ptfuncs.check_rkern_key(PT_CALL_ID_TA_REAR, ptopts.ntests, &perc_gap_ta_rear);
     if (myrank == 0) {
-        printf("TA Rear kernel percentage gap: %f\n", perc_gap_ta_rear);
+        printf("TA Rear kernel percentage gap: %f%%\n", perc_gap_ta_rear);
     }
     ptfuncs.check_fkern_key(PT_CALL_ID_TB_FRONT, ptopts.ntests, &perc_gap_tb_front);
     if (myrank == 0) {
-        printf("TB Front kernel percentage gap: %f\n", perc_gap_tb_front);
+        printf("TB Front kernel percentage gap: %.6f%%\n", perc_gap_tb_front);
     }
     ptfuncs.check_rkern_key(PT_CALL_ID_TB_REAR, ptopts.ntests, &perc_gap_tb_rear);
     if (myrank == 0) {
-        printf("TB Rear kernel percentage gap: %f\n", perc_gap_tb_rear);
+        printf("TB Rear kernel percentage gap: %.6f%%\n", perc_gap_tb_rear);
     }
     /* Step 4: Calculate Wasserstein distance */
     for (int i = 0; i < 2; i++) {
@@ -188,20 +191,44 @@ main(int argc, char *argv[])
     if (myrank == 0) {
         int64_t p_cdf[2][ptopts.ntiles];
         double w;
+        FILE *fp_ta_cdf = NULL, *fp_tb_cdf = NULL;
+
 
         calc_cdf_i64(p_tmet_all[0], ptopts.ntests * nrank, p_cdf[0], ptopts.ntiles);
         calc_cdf_i64(p_tmet_all[1], ptopts.ntests * nrank, p_cdf[1], ptopts.ntiles);
         calc_w(p_cdf[0], p_cdf[1], ptopts.ntiles, ptopts.cut_p, &w);
         printf("Percentage cut: %f\nTime gap: %" PRIi64 "ns\n", ptopts.cut_p, ptopts.tb - ptopts.ta);
-        printf("Percentile, Gap\n");
-        printf("0, %" PRIi64 "\n", p_cdf[1][0] - p_cdf[0][0]);
-        printf("50, %" PRIi64 "\n", p_cdf[1][(int)(ptopts.ntiles * 0.5)] - p_cdf[0][(int)(ptopts.ntiles * 0.5)]);
-        printf("75, %" PRIi64 "\n", p_cdf[1][(int)(ptopts.ntiles * 0.75)] - p_cdf[0][(int)(ptopts.ntiles * 0.75)]);
-        printf("90, %" PRIi64 "\n", p_cdf[1][(int)(ptopts.ntiles * 0.9)] - p_cdf[0][(int)(ptopts.ntiles * 0.9)]);
-        printf("95, %" PRIi64 "\n", p_cdf[1][(int)(ptopts.ntiles * 0.95)] - p_cdf[0][(int)(ptopts.ntiles * 0.95)]);
-        printf("99, %" PRIi64 "\n", p_cdf[1][(int)(ptopts.ntiles * 0.99)] - p_cdf[0][(int)(ptopts.ntiles * 0.99)]);
-        printf("100, %" PRIi64 "\n", p_cdf[1][(int)(ptopts.ntiles * 1.0)] - p_cdf[0][(int)(ptopts.ntiles * 1.0)]);
+        printf("Percentile, Ta, Tb, Gap\n");
+        printf("0, %" PRIi64 ", %" PRIi64 ", %" PRIi64 "\n",
+            p_cdf[0][0], p_cdf[1][0], p_cdf[1][0] - p_cdf[0][0]);
+        printf("50, %" PRIi64 ", %" PRIi64 ", %" PRIi64 "\n",
+            p_cdf[0][(int)(ptopts.ntiles * 0.5)], p_cdf[1][(int)(ptopts.ntiles * 0.5)], p_cdf[1][(int)(ptopts.ntiles * 0.5)] - p_cdf[0][(int)(ptopts.ntiles * 0.5)]);
+        printf("75, %" PRIi64 ", %" PRIi64 ", %" PRIi64 "\n",
+            p_cdf[0][(int)(ptopts.ntiles * 0.75)], p_cdf[1][(int)(ptopts.ntiles * 0.75)], p_cdf[1][(int)(ptopts.ntiles * 0.75)] - p_cdf[0][(int)(ptopts.ntiles * 0.75)]);
+        printf("90, %" PRIi64 ", %" PRIi64 ", %" PRIi64 "\n",
+            p_cdf[0][(int)(ptopts.ntiles * 0.9)], p_cdf[1][(int)(ptopts.ntiles * 0.9)], p_cdf[1][(int)(ptopts.ntiles * 0.9)] - p_cdf[0][(int)(ptopts.ntiles * 0.9)]);
+        printf("95, %" PRIi64 ", %" PRIi64 ", %" PRIi64 "\n",
+            p_cdf[0][(int)(ptopts.ntiles * 0.95)], p_cdf[1][(int)(ptopts.ntiles * 0.95)], p_cdf[1][(int)(ptopts.ntiles * 0.95)] - p_cdf[0][(int)(ptopts.ntiles * 0.95)]);
+        printf("99, %" PRIi64 ", %" PRIi64 ", %" PRIi64 "\n", 
+            p_cdf[0][(int)(ptopts.ntiles * 0.99)], p_cdf[1][(int)(ptopts.ntiles * 0.99)], p_cdf[1][(int)(ptopts.ntiles * 0.99)] - p_cdf[0][(int)(ptopts.ntiles * 0.99)]);
+        printf("100, %" PRIi64 ", %" PRIi64 ", %" PRIi64 "\n",
+            p_cdf[0][ptopts.ntiles-1], p_cdf[1][ptopts.ntiles-1], p_cdf[1][ptopts.ntiles-1] - p_cdf[0][ptopts.ntiles-1]);
         printf("Wasserstein distance: %f\n", w);
+
+        fp_ta_cdf = fopen("partes_ta_cdf.csv", "w");
+        fp_tb_cdf = fopen("partes_tb_cdf.csv", "w");
+        if (!fp_ta_cdf || !fp_tb_cdf) {
+            err = PTERR_FILE_OPEN_FAILED;
+            _ptm_exit_on_error(err, "main:fopen");
+        }
+        for (int i = 0; i < ptopts.ntiles; i++) {
+            fprintf(fp_ta_cdf, "%" PRIi64 "\n", p_cdf[0][i]);
+            fprintf(fp_tb_cdf, "%" PRIi64 "\n", p_cdf[1][i]);
+        }
+        fclose(fp_ta_cdf);
+        fclose(fp_tb_cdf);
+        fp_ta_cdf = NULL;
+        fp_tb_cdf = NULL;
     }
     FILE *fp_a = NULL, *fp_b = NULL;
     char fp_a_name[1024], fp_b_name[1024];
