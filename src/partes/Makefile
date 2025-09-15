@@ -16,6 +16,7 @@ KERNEL_MPI_OBJS = $(KERNELDIR)/none-mpi.o $(KERNELDIR)/triad-mpi.o $(KERNELDIR)/
                   $(KERNELDIR)/copy-mpi.o $(KERNELDIR)/add-mpi.o $(KERNELDIR)/pow-mpi.o \
                   $(KERNELDIR)/dgemm-mpi.o $(KERNELDIR)/mpi_bcast-mpi.o
 
+
 # Timer object files for partes-mpi (with MPI flag)
 TIMER_MPI_OBJS = $(patsubst $(TIMERDIR)/%.c,$(TIMERDIR)/%-mpi.o,$(wildcard $(TIMERDIR)/*.c))
 
@@ -32,7 +33,7 @@ partes-mpi.x: $(PARTES_MPI_OBJS)
 	$(CC) $(PARTES_MPI_OBJS) -o $@ $(LDFLAGS)
 
 partes-fit.x: $(FIT_OBJS)
-	$(CC) $(FIT_OBJS) -o $@ $(LDFLAGS)
+	$(CC) $(FIT_OBJS) $(TIMER_MPI_OBJS) -o $@ $(LDFLAGS)
 
 tools:
 	$(MAKE) -C tools

@@ -10,7 +10,8 @@
 #include <string.h>
 #include <unistd.h>
 #include "partes_types.h"
-#include "./kernels/kernels.h"
+#include "kernels/kernels.h"
+#include "timers/timers.h"
 #include "pterr.h"
 
 #ifdef PTOPT_USE_MPI
@@ -45,7 +46,7 @@ print_usage(char *argv[])
 }
 
 int
-parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs)
+parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs, pt_timer_func_t *pttimers)
 {
     int myrank = 0;
 #ifdef PTOPT_USE_MPI
@@ -68,11 +69,10 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs)
     ptopts->cut_p = 1.0;
     ptopts->ta = INT64_MIN;
     ptopts->tb = INT64_MIN;
-    strcpy(ptopts->fkern_name, "NONE");
-    strcpy(ptopts->rkern_name, "NONE");
-    strcpy(ptopts->timer_name, "clock_gettime");
 
     // Initialize kernel functions to NULL
+    strcpy(ptopts->fkern_name, "NONE");
+    strcpy(ptopts->rkern_name, "NONE");
     ptfuncs->init_fkern = init_kern_none;
     ptfuncs->run_fkern = run_kern_none;
     ptfuncs->cleanup_fkern = cleanup_kern_none;
@@ -83,6 +83,13 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs)
     ptfuncs->update_rkern_key = update_key_none;
     ptfuncs->check_fkern_key = check_key_none;
     ptfuncs->check_rkern_key = check_key_none;
+    
+    // Initialize timer functions to clock_gettime
+    strcpy(ptopts->timer_name, "clock_gettime");
+    pttimers->init_timer = init_timer_clock_gettime;
+    pttimers->tick = tick_clock_gettime;
+    pttimers->tock = tock_clock_gettime;
+    pttimers->get_stamp = get_stamp_clock_gettime;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--ta") == 0) {
@@ -264,9 +271,18 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs)
             if (i + 1 < argc) {
                 if (strcmp(argv[i + 1], "clock_gettime") == 0) {
                     ptopts->timer = TIMER_CLOCK_GETTIME;
+                    pttimers->init_timer = init_timer_clock_gettime;
+                    pttimers->tick = tick_clock_gettime;
+                    pttimers->tock = tock_clock_gettime;
+                    pttimers->get_stamp = get_stamp_clock_gettime;
                     strcpy(ptopts->timer_name, "clock_gettime");
                 } else if (strcmp(argv[i + 1], "mpi_wtime") == 0) {
                     ptopts->timer = TIMER_MPI_WTIME;
+                    pttimers->init_timer = init_timer_mpi_wtime;
+                    pttimers->tick = tick_mpi_wtime;
+                    pttimers->tock = tock_mpi_wtime;
+                    pttimers->get_stamp = get_stamp_mpi_wtime;
+                    strcpy(ptopts->timer_name, "mpi_wtime");
                 } else {
                     fprintf(stderr, "Unknown timer: %s\n", argv[i + 1]);
                     return 1;

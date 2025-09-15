@@ -28,14 +28,6 @@ typedef struct {
     char fkern_name[128], rkern_name[128], timer_name[128];
 } pt_opts_t;
 
-
-enum timer_name {
-    TIMER_NONE = 0,
-    TIMER_CLOCK_GETTIME,
-    TIMER_MPI_WTIME
-};
-
-
 typedef struct {
     /* Front kernel function set */
     int (*init_fkern)(size_t flush_kib, int id, size_t *flush_kib_real);
@@ -52,11 +44,10 @@ typedef struct {
 } pt_kern_func_t;
 
 typedef struct {
-    void (*init_timer)(void);
-    void (*gettime)(void);
-    void (*gettime_s)(void);
-    void (*gettime_e)(void);
-    void (*close_timer)(void);
+    int (*init_timer)(void);
+    int64_t (*tick)(void);
+    int64_t (*tock)(void);
+    int64_t (*get_stamp)(void);
 } pt_timer_func_t;
 
 typedef struct {

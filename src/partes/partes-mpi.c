@@ -15,18 +15,17 @@
 #include <inttypes.h>
 #include "pterr.h"
 #include "partes_types.h"
-#include "timers/clock_gettime.h"
-#include "./kernels/kernels.h"
 #include "gauges/sub.h"
+#include "timers/clock_gettime.h"
 #include "stat.h"
 
 #ifndef __PTM_NOP
 #define __PTM_NOP __asm__ __volatile__ ("nop");
 #endif
 
-extern int get_tspec(int ntest, pt_timer_spec_t *timer_spec);
-extern int parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs);
-extern int exp_guess_gauge(int myrank, int nrank, pt_timer_spec_t *timer_spec, double *gpt_guess);
+extern int get_tspec(int ntest, pt_timer_func_t *pttimers, pt_timer_spec_t *timer_spec);
+extern int parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs, pt_timer_func_t *pttimers);
+extern int exp_guess_gauge(int myrank, int nrank, pt_timer_func_t *pttimers, pt_timer_spec_t *timer_spec, double *gpt_guess);
 
 int 
 main(int argc, char *argv[]) 
@@ -37,6 +36,7 @@ main(int argc, char *argv[])
     enum pterr err = PTERR_SUCCESS;
     pt_opts_t ptopts;
     pt_kern_func_t ptfuncs;
+    pt_timer_func_t pttimers;
     pt_timer_spec_t timer_spec;
     pt_gauge_info_t gauge_info;
     // Initialize MPI
@@ -51,7 +51,7 @@ main(int argc, char *argv[])
     MPI_Comm_size(MPI_COMM_WORLD, &nrank);
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
-    _ptm_exit_on_error(parse_ptargs(argc, argv, &ptopts, &ptfuncs), "parse_ptargs");
+    _ptm_exit_on_error(parse_ptargs(argc, argv, &ptopts, &ptfuncs, &pttimers), "parse_ptargs");
 
     /* Initialize kernels */
     err = ptfuncs.init_fkern(ptopts.fsize_a, PT_CALL_ID_TA_FRONT, &ptopts.fsize_real_a);
@@ -66,7 +66,7 @@ main(int argc, char *argv[])
     if (myrank == 0) {
         printf("Repeat %" PRIi64 " runtime measurements, target gauge time: %" PRIi64 
             "ns, %" PRIi64 "ns\n", ptopts.ntests, ptopts.ta, ptopts.tb);
-        printf("Timer: %d\n", ptopts.timer);
+        printf("Timer: %s\n", ptopts.timer_name);
         printf("ta flush info:\n");
         printf("Front kernel: %s, size: %zu KiB, real size: %zu KiB\n", 
             ptopts.fkern_name, ptopts.fsize_a, ptopts.fsize_real_a);
@@ -80,7 +80,7 @@ main(int argc, char *argv[])
     }
 
     /* Step 1: Get the minimum overhead and time per tick */
-    err = get_tspec(10000, &timer_spec);
+    err = get_tspec(10000, &pttimers, &timer_spec);
     _ptm_exit_on_error(err, "get_tspec");
     pt_mpi_printf(myrank, nrank, "Timer spec: tick=%" PRIi64 ", ovh=%" PRIi64 "\n", timer_spec.tick, timer_spec.ovh);
 
@@ -88,7 +88,8 @@ main(int argc, char *argv[])
     gauge_info.cy_per_op = 0;
     gauge_info.gpt = 0.0;
     gauge_info.wtime_per_op = 0.0;
-    err = exp_guess_gauge(myrank, nrank, &timer_spec, &gauge_info.gpt);
+    _ptm_exit_on_error(pttimers.init_timer(), "init_timer");
+    err = exp_guess_gauge(myrank, nrank, &pttimers, &timer_spec, &gauge_info.gpt);
     _ptm_exit_on_error(err, "exp_guess_gauge");
     pt_mpi_printf(myrank, nrank, "Gauge info: gpt=%.6f\n", gauge_info.gpt);
     
@@ -127,23 +128,23 @@ main(int argc, char *argv[])
     ngs[0] = (int64_t)((double)ptopts.ta / (double)timer_spec.tick) * gauge_info.gpt;
     ngs[1] = (int64_t)((double)ptopts.tb / (double)timer_spec.tick) * gauge_info.gpt;
 
-    MPI_Barrier(MPI_COMM_WORLD);
     if (myrank == 0) {
         fflush(stdout);
         printf("t0 = %" PRIi64 ", number of gauges: %" PRIi64 "\n"
             "t1 = %" PRIi64 ", number of gauges: %" PRIi64 "\n", ptopts.ta, ngs[0], ptopts.tb, ngs[1]);
     }
 
-    __timer_init_clock_gettime;
     MPI_Barrier(MPI_COMM_WORLD);
     __PTM_NOP;
     for (int i = 0; i < ptopts.ntests; i++) {
         MPI_Barrier(MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
         ptfuncs.run_fkern(PT_CALL_ID_TA_FRONT);
-        __timer_tick_clock_gettime;
+        register int64_t t0 = pttimers.tick();
+        // __timer_tick_clock_gettime;
         __gauge_sub_intrinsic(ngs[0]);
-        __timer_tock_clock_gettime(p_tmet[0][i]);
+        p_tmet[0][i] = pttimers.tock() - t0;
+        // __timer_tock_clock_gettime(p_tmet[0][i]);
         ptfuncs.run_rkern(PT_CALL_ID_TA_REAR);
         ptfuncs.update_fkern_key(PT_CALL_ID_TA_FRONT);
         ptfuncs.update_rkern_key(PT_CALL_ID_TA_REAR);
@@ -153,9 +154,11 @@ main(int argc, char *argv[])
         MPI_Barrier(MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
         ptfuncs.run_fkern(PT_CALL_ID_TB_FRONT);
-        __timer_tick_clock_gettime;
+        register int64_t t0 = pttimers.tick();
+        // __timer_tick_clock_gettime;
         __gauge_sub_intrinsic(ngs[1]);
-        __timer_tock_clock_gettime(p_tmet[1][i]);
+        p_tmet[1][i] = pttimers.tock() - t0;
+        // __timer_tock_clock_gettime(p_tmet[1][i]);
         ptfuncs.run_rkern(PT_CALL_ID_TB_REAR);
         ptfuncs.update_fkern_key(PT_CALL_ID_TB_FRONT);
         ptfuncs.update_rkern_key(PT_CALL_ID_TB_REAR);

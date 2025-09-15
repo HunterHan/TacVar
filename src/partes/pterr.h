@@ -15,7 +15,8 @@ enum pterr {
     PTERR_INVALID_ARGUMENT = 5,
     PTERR_MISSING_ARGUMENT = 6,
     PTERR_FILE_OPEN_FAILED = 7,
-    PTERR_KEY_CHECK_FAILED = 8
+    PTERR_KEY_CHECK_FAILED = 8,
+    PTERR_TIMER_INIT_FAILED = 9
 };
 
 const char *get_pterr_str(enum pterr err);

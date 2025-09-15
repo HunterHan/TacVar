@@ -14,21 +14,21 @@
 #include <math.h>
 #include "pterr.h"
 #include "partes_types.h"
-#include "timers/clock_gettime.h"
+#include "timers/timers.h"
 #include "gauges/sub.h"
 
-extern int fit_sub_time(int myrank, int nrank, pt_timer_spec_t *timer_spec, pt_gauge_info_t *gauge_info, double gpt_guess);
-extern int get_tspec(int ntest, pt_timer_spec_t *timer_spec);
-extern int exp_guess_gauge(int myrank, int nrank, pt_timer_spec_t *timer_spec, double *gpt_guess);
+extern int fit_sub_time(int myrank, int nrank, pt_timer_func_t *pttimers, pt_timer_spec_t *timer_spec, pt_gauge_info_t *gauge_info, double gpt_guess);
+extern int get_tspec(int ntest, pt_timer_func_t *pttimers, pt_timer_spec_t *timer_spec);
+extern int exp_guess_gauge(int myrank, int nrank, pt_timer_func_t *pttimers, pt_timer_spec_t *timer_spec, double *gpt_guess);
 extern const char *get_pterr_str(enum pterr err);
 
 static int _comp_u64(const void *a, const void *b);
-static inline int64_t _run_sub(uint64_t nsub);
+static inline int64_t _run_sub(uint64_t nsub, pt_timer_func_t *pttimers);
 /**
  * @brief Test key metrics for MMI and MMD at a given t0, with interval dt*nintv. 
  */
 static int _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, 
-    pt_timer_spec_t *timer_spec, pt_gauge_info_t *gauge_info);
+    pt_timer_func_t *pttimers, pt_timer_spec_t *timer_spec, pt_gauge_info_t *gauge_info);
 
 static int
 _comp_u64(const void *a, const void *b)
@@ -37,20 +37,20 @@ _comp_u64(const void *a, const void *b)
 }
 
 static inline int64_t 
-_run_sub(uint64_t nsub)
+_run_sub(uint64_t nsub, pt_timer_func_t *pttimers)
 {
     int64_t res;
-    __timer_init_clock_gettime;
+    _ptm_return_on_error(pttimers->init_timer(), "run_sub");
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
-    __timer_tick_clock_gettime;
+    register int64_t t0 = pttimers->tick();
     __gauge_sub_intrinsic(nsub);
-    __timer_tock_clock_gettime(res);
+    res = pttimers->tock() - t0;
     return res;
 }
 
 static int
-_test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_spec_t *timer_spec, pt_gauge_info_t *gauge_info)
+_test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_func_t *pttimers, pt_timer_spec_t *timer_spec, pt_gauge_info_t *gauge_info)
 {
     int ret = PTERR_SUCCESS;
     uint64_t ng;
@@ -83,7 +83,7 @@ _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_spec_t *timer_s
 
     ng = (uint64_t)((double)ts / (double)timer_spec->tick * (double)gauge_info->gpt);
     for (int i = 0; i < NMEAS; i++) {
-        pt0[i] = (uint64_t)(_run_sub(ng) - timer_spec->ovh);
+        pt0[i] = (uint64_t)(_run_sub(ng, pttimers) - timer_spec->ovh);
     }
     qsort(pt0, NMEAS, sizeof(uint64_t), _comp_u64);
     for (int i = 0; i < NTILE; i++) {
@@ -98,7 +98,7 @@ _test_ltt_ltd(uint64_t ts, uint64_t dt, uint64_t nintv, pt_timer_spec_t *timer_s
         double wabs = 0, wrel = 0, wabs2min=0; 
 
         for (int i = 0; i < NMEAS; i++) {
-            pt1[i] = (uint64_t)(_run_sub(ng) - timer_spec->ovh);
+            pt1[i] = (uint64_t)(_run_sub(ng, pttimers) - timer_spec->ovh);
         }
         qsort(pt1, NMEAS, sizeof(uint64_t), _comp_u64);
         for (int i = 0; i < NTILE; i++) {
@@ -146,8 +146,14 @@ main(int argc, char *argv[])
     int myrank, nrank, err;
     pt_gauge_info_t gauge_info;
     pt_timer_spec_t timer_spec;
+    pt_timer_func_t pttimers;
     int64_t *ptick_all = NULL, *povh_all = NULL;
     double gpt_guess = 0, *pgpt_guess_all = NULL;
+
+    pttimers.init_timer = init_timer_clock_gettime;
+    pttimers.tick = tick_clock_gettime;
+    pttimers.tock = tock_clock_gettime;
+    pttimers.get_stamp = get_stamp_clock_gettime;
     
     /* Init MPI */
     err = MPI_Init(&argc, &argv);
@@ -158,7 +164,7 @@ main(int argc, char *argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
     MPI_Comm_size(MPI_COMM_WORLD, &nrank);
     
-    err = get_tspec(10000, &timer_spec);
+    err = get_tspec(10000, &pttimers, &timer_spec);
     _ptm_exit_on_error(err, "get_tspec");
     if (myrank == 0) {
         ptick_all = (int64_t *)malloc(nrank * sizeof(int64_t));
@@ -198,7 +204,7 @@ main(int argc, char *argv[])
     if (myrank == 0) {
         printf("=== Exponential Guessing ===\n");
     }
-    err = exp_guess_gauge(myrank, nrank, &timer_spec, &gpt_guess);
+    err = exp_guess_gauge(myrank, nrank, &pttimers, &timer_spec, &gpt_guess);
     if (err != PTERR_SUCCESS) {
         fprintf(stderr, "[Error] Rank %d: exp_guess_gauge failed: %d\n", myrank, err);
         MPI_Finalize();
@@ -218,7 +224,7 @@ main(int argc, char *argv[])
     gauge_info.cy_per_op = 1; // TODO: what if cyc_per_op != 1?
     gauge_info.gpt = 0;
     gauge_info.wtime_per_op = 0;
-    err = fit_sub_time(myrank, nrank, &timer_spec, &gauge_info, gpt_guess);
+    err = fit_sub_time(myrank, nrank, &pttimers, &timer_spec, &gauge_info, gpt_guess);
     if (err != PTERR_SUCCESS) {
         fprintf(stderr, "[Error] Rank %d: fit_sub_time failed: %d\n", myrank, err);
         MPI_Finalize();
@@ -255,7 +261,7 @@ main(int argc, char *argv[])
         gpt_all = NULL;
     }
 
-    err = _test_ltt_ltd(1e8, 1e7, 10, &timer_spec, &gauge_info);
+    err = _test_ltt_ltd(1e8, 1e7, 10, &pttimers, &timer_spec, &gauge_info);
     if (err != PTERR_SUCCESS) {
         fprintf(stderr, "[Error] Rank %d: _test_ltt_ltd failed: %d\n", myrank, err);
         MPI_Finalize();
