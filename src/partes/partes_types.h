@@ -24,8 +24,8 @@ typedef struct {
     size_t fsize_a, rsize_a, fsize_b, rsize_b;
     size_t fsize_real_a, rsize_real_a, fsize_real_b, rsize_real_b;
     double cut_p;
-    int fkern, rkern, timer, ntiles;
-    char fkern_name[128], rkern_name[128], timer_name[128];
+    int fkern, rkern, timer, gauge, ntiles;
+    char fkern_name[128], rkern_name[128], timer_name[128], gauge_name[128];
 } pt_opts_t;
 
 typedef struct {
@@ -49,6 +49,12 @@ typedef struct {
     int64_t (*tock)(void);
     int64_t (*get_stamp)(void);
 } pt_timer_func_t;
+
+typedef struct {
+    int (*init_gauge)(void);
+    void (*run_gauge)(int64_t n);
+    void (*cleanup_gauge)(void);
+} pt_gauge_func_t;
 
 typedef struct {
     int64_t tick; // Nanoseconds per tick

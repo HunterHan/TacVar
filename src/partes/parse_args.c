@@ -12,6 +12,7 @@
 #include "partes_types.h"
 #include "kernels/kernels.h"
 #include "timers/timers.h"
+#include "gauges/gauges.h"
 #include "pterr.h"
 
 #ifdef PTOPT_USE_MPI
@@ -40,13 +41,14 @@ print_usage(char *argv[])
         printf("  --rkern <kernel>    Rear kernel (none, triad, scale, copy, add, pow, dgemm, mpi_bcast)\n");
         printf("  --rsize <size>      Rear kernel memory size in KiB\n");
         printf("  --timer <timer>     Timer method (clock_gettime, mpi_wtime)\n");
+        printf("  --gauge <gauge>     Gauge method (sub_scalar)\n");
         printf("  --ntests <num>      Number of gauge measurements (default: 1000)\n");
         printf("  --help, -h          Show this help message\n");
     }
 }
 
 int
-parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs, pt_timer_func_t *pttimers)
+parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs, pt_timer_func_t *pttimers, pt_gauge_func_t *ptgauges)
 {
     int myrank = 0;
 #ifdef PTOPT_USE_MPI
@@ -64,6 +66,7 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs,
     ptopts->fkern = KERN_NONE;
     ptopts->rkern = KERN_NONE;
     ptopts->timer = TIMER_CLOCK_GETTIME;
+    ptopts->gauge = GAUGE_SUB_SCALAR;
     ptopts->ntests = 1000;
     ptopts->ntiles = 100;
     ptopts->cut_p = 1.0;
@@ -90,6 +93,12 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs,
     pttimers->tick = tick_clock_gettime;
     pttimers->tock = tock_clock_gettime;
     pttimers->get_stamp = get_stamp_clock_gettime;
+    
+    // Initialize gauge functions to sub_intrinsic (default macro-based)
+    strcpy(ptopts->gauge_name, "sub_scalar");
+    ptgauges->init_gauge = init_gauge_sub_scalar;
+    ptgauges->run_gauge = run_gauge_sub_scalar;
+    ptgauges->cleanup_gauge = cleanup_gauge_sub_scalar;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--ta") == 0) {
@@ -285,6 +294,20 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs,
                     strcpy(ptopts->timer_name, "mpi_wtime");
                 } else {
                     fprintf(stderr, "Unknown timer: %s\n", argv[i + 1]);
+                    return 1;
+                }
+                i++; // Skip the next argument
+            }
+        } else if (strcmp(argv[i], "--gauge") == 0) {
+            if (i + 1 < argc) {
+                if (strcmp(argv[i + 1], "sub_scalar") == 0) {
+                    ptopts->gauge = GAUGE_SUB_SCALAR;
+                    ptgauges->init_gauge = init_gauge_sub_scalar;
+                    ptgauges->run_gauge = run_gauge_sub_scalar;
+                    ptgauges->cleanup_gauge = cleanup_gauge_sub_scalar;
+                    strcpy(ptopts->gauge_name, "sub_scalar");
+                } else {
+                    fprintf(stderr, "Unknown gauge: %s\n", argv[i + 1]);
                     return 1;
                 }
                 i++; // Skip the next argument

@@ -11,6 +11,10 @@ TIMERDIR = timers
 # Core object files for partes-mpi (with MPI flag)
 CORE_MPI_OBJS = partes-mpi-mpi.o parse_args-mpi.o get_tspec-mpi.o pterr-mpi.o stat-mpi.o detect_std_time-mpi.o
 
+# Gauge object files for partes-mpi (with MPI flag)
+GAUGE_MPI_OBJS = $(patsubst $(GAUGEDIR)/%.c,$(GAUGEDIR)/%-mpi.o,$(wildcard $(GAUGEDIR)/*.c))
+
+
 # Kernel object files for partes-mpi (with MPI flag)
 KERNEL_MPI_OBJS = $(KERNELDIR)/none-mpi.o $(KERNELDIR)/triad-mpi.o $(KERNELDIR)/scale-mpi.o \
                   $(KERNELDIR)/copy-mpi.o $(KERNELDIR)/add-mpi.o $(KERNELDIR)/pow-mpi.o \
@@ -21,15 +25,18 @@ KERNEL_MPI_OBJS = $(KERNELDIR)/none-mpi.o $(KERNELDIR)/triad-mpi.o $(KERNELDIR)/
 TIMER_MPI_OBJS = $(patsubst $(TIMERDIR)/%.c,$(TIMERDIR)/%-mpi.o,$(wildcard $(TIMERDIR)/*.c))
 
 # All object files for partes-mpi
-PARTES_MPI_OBJS = $(CORE_MPI_OBJS) $(KERNEL_MPI_OBJS) $(TIMER_MPI_OBJS)
+PARTES_MPI_OBJS = $(CORE_MPI_OBJS) $(KERNEL_MPI_OBJS) $(TIMER_MPI_OBJS) $(GAUGE_MPI_OBJS)
 
 # Object files for partes-fit (without MPI flag)
 FIT_OBJS = partes-fit.o pterr.o stat.o detect_std_time.o get_tspec.o
 
 # Targets
-all: partes-mpi.x partes-fit.x
+all: partes-mpi.x partes-mpi-gpointer.x partes-fit.x
 
 partes-mpi.x: $(PARTES_MPI_OBJS)
+	$(CC) $(PARTES_MPI_OBJS) -o $@ $(LDFLAGS)
+
+partes-mpi-gpointer.x: $(PARTES_MPI_OBJS)
 	$(CC) $(PARTES_MPI_OBJS) -o $@ $(LDFLAGS)
 
 partes-fit.x: $(FIT_OBJS)
@@ -47,7 +54,7 @@ tools:
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f *.o *-mpi.o $(KERNELDIR)/*.o $(KERNELDIR)/*-mpi.o $(TIMERDIR)/*.o $(TIMERDIR)/*-mpi.o partes-mpi.x partes-fit.x
+	rm -f *.o *-mpi.o $(KERNELDIR)/*.o $(TIMERDIR)/*.o $(GAUGEDIR)/*.o  partes-mpi.x partes-fit.x
 
 cleanall: clean
 	$(MAKE) -C tools clean

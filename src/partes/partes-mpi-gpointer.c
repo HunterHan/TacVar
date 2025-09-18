@@ -1,6 +1,6 @@
 /**
- * @file partes.c
- * @brief: The main file for partes - Parallel Timing Error Sensor.
+ * @file partes-mpi-gpointer.c
+ * @brief: Use function pointer to set gauge kernel, timer and flush kernel.
  */
 #define _XOPEN_SOURCE 700
 #define _POSIX_C_SOURCE 200809L
@@ -85,10 +85,14 @@ main(int argc, char *argv[])
     err = ptfuncs.init_rkern(ptopts.rsize_b, PT_CALL_ID_TB_REAR, &ptopts.rsize_real_b);
     _ptm_exit_on_error(err, "init_rkern_b");
 
+    /* Initialize gauge */
+    _ptm_exit_on_error(ptgauges.init_gauge(), "init_gauge");
+
     if (myrank == 0) {
         printf("Repeat %" PRIi64 " runtime measurements, target gauge time: %" PRIi64 
             "ns, %" PRIi64 "ns\n", ptopts.ntests, ptopts.ta, ptopts.tb);
         printf("Timer: %s\n", ptopts.timer_name);
+        printf("Gauge: %s\n", ptopts.gauge_name);
         printf("ta flush info:\n");
         printf("Front kernel: %s, size: %zu KiB, real size: %zu KiB\n", 
             ptopts.fkern_name, ptopts.fsize_a, ptopts.fsize_real_a);
@@ -167,7 +171,7 @@ main(int argc, char *argv[])
         ptfuncs.run_fkern(PT_CALL_ID_TA_FRONT);
         register int64_t t0 = pttimers.tick();
         // __timer_tick_clock_gettime;
-        __gauge_sub_intrinsic(ngs[0]);
+        ptgauges.run_gauge(ngs[0]);
         p_tmet[0][i] = pttimers.tock() - t0;
         // __timer_tock_clock_gettime(p_tmet[0][i]);
         ptfuncs.run_rkern(PT_CALL_ID_TA_REAR);
@@ -182,7 +186,7 @@ main(int argc, char *argv[])
         ptfuncs.run_fkern(PT_CALL_ID_TB_FRONT);
         register int64_t t0 = pttimers.tick();
         // __timer_tick_clock_gettime;
-        __gauge_sub_intrinsic(ngs[1]);
+        ptgauges.run_gauge(ngs[1]);
         p_tmet[1][i] = pttimers.tock() - t0;
         // __timer_tock_clock_gettime(p_tmet[1][i]);
         ptfuncs.run_rkern(PT_CALL_ID_TB_REAR);
@@ -315,6 +319,9 @@ EXIT:
     ptfuncs.cleanup_rkern(PT_CALL_ID_TA_REAR);
     ptfuncs.cleanup_fkern(PT_CALL_ID_TB_FRONT);
     ptfuncs.cleanup_rkern(PT_CALL_ID_TB_REAR);
+
+    /* Cleanup gauge */
+    ptgauges.cleanup_gauge();
 
     if (mpi_inited) {
         MPI_Finalize();
