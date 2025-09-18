@@ -46,7 +46,7 @@
 
 extern int get_tspec(int ntest, pt_timer_func_t *pttimers, pt_timer_spec_t *timer_spec);
 extern int parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs, pt_timer_func_t *pttimers, pt_gauge_func_t *ptgauges);
-extern int exp_fit_gpns(int ntest, int64_t tmax, pt_timer_func_t *pttimers, double *gpns);
+extern int exp_fit_gpns(int ntest, int64_t tmax, pt_timer_func_t *pttimers, pt_gauge_func_t *ptgauges, double *gpns);
 
 int 
 main(int argc, char *argv[]) 
@@ -85,6 +85,9 @@ main(int argc, char *argv[])
     err = ptfuncs.init_rkern(ptopts.rsize_b, PT_CALL_ID_TB_REAR, &ptopts.rsize_real_b);
     _ptm_exit_on_error(err, "init_rkern_b");
 
+    /* Initialize gauge */
+    _ptm_exit_on_error(ptgauges.init_gauge(), "init_gauge");
+
     if (myrank == 0) {
         printf("Repeat %" PRIi64 " runtime measurements, target gauge time: %" PRIi64 
             "ns, %" PRIi64 "ns\n", ptopts.ntests, ptopts.ta, ptopts.tb);
@@ -114,7 +117,7 @@ main(int argc, char *argv[])
     gauge_info.gpns = 0.0;
     gauge_info.wtime_per_op = 0.0;
     _ptm_exit_on_error(pttimers.init_timer(), "init_timer");
-    err = exp_fit_gpns( 100, 100000000LL, &pttimers, &gauge_info.gpns);
+    err = exp_fit_gpns( 100, 100000000LL, &pttimers, &ptgauges, &gauge_info.gpns);
     _ptm_exit_on_error(err, "exp_fit_gpns");
     pt_mpi_printf(myrank, nrank, "Gauge info: gpns=%f\n", gauge_info.gpns);
     

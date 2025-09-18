@@ -11,7 +11,6 @@
 #include <mpi.h>
 #include "pterr.h"
 #include "partes_types.h"
-#include "gauges/sub.h"
 #include "timers/clock_gettime.h"
 
 #define NUM_IGNORE_TIMING 2 // Ignore the first 2 results by default
@@ -21,20 +20,20 @@
 
 extern int calc_sample_var_1d_u64(uint64_t *arr, size_t n, double *var);
 
-static inline int64_t _run_sub(uint64_t nsub, pt_timer_func_t *pttimers);
+static inline int64_t _run_sub(uint64_t nsub, pt_timer_func_t *pttimers, pt_gauge_func_t *ptgauges);
 
 /**
  * @brief: run ra=nsub, ra-=1 until ra==0.
  */
 static inline int64_t 
-_run_sub(uint64_t nsub, pt_timer_func_t *pttimers)
+_run_sub(uint64_t nsub, pt_timer_func_t *pttimers, pt_gauge_func_t *ptgauges)
 {
     int64_t res;
     _ptm_return_on_error(pttimers->init_timer(), "run_sub");
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     register int64_t t0 = pttimers->tick();
-    __gauge_sub_intrinsic(nsub);
+    ptgauges->run_gauge(nsub);
     res = pttimers->tock() - t0;
     return res;
 }
@@ -48,7 +47,7 @@ _run_sub(uint64_t nsub, pt_timer_func_t *pttimers)
  * @return 0 on success, 1 on failure
  */
 int
-exp_guess_gauge(int myrank, int nrank, pt_timer_func_t *pttimers, pt_timer_spec_t *timer_spec, double *gpt_guess)
+exp_guess_gauge(int myrank, int nrank, pt_timer_func_t *pttimers, pt_gauge_func_t *ptgauges, pt_timer_spec_t *timer_spec, double *gpt_guess)
 {
     const int max_exp = 10; // nsub_arr=[1,10,...,10^10]
     uint64_t nsub_arr[11], tmet_arr[11];
@@ -72,7 +71,7 @@ exp_guess_gauge(int myrank, int nrank, pt_timer_func_t *pttimers, pt_timer_spec_
 
         /* Run PT_VAR_START_NSTEP steps */
         for (int i = 0; i < PT_VAR_MAX_NSTEP; i++) {
-            tmet = (uint64_t)_run_sub(nsub, pttimers) / timer_spec->tick;
+            tmet = (uint64_t)_run_sub(nsub, pttimers, ptgauges) / timer_spec->tick;
             tmet_min = tmet < tmet_min ? tmet : tmet_min;
         }
         tmet_arr[step] = tmet_min;
@@ -116,7 +115,7 @@ exp_guess_gauge(int myrank, int nrank, pt_timer_func_t *pttimers, pt_timer_spec_
  * On rank 0 prints results; returns 0 on success.
  */
 int
-fit_sub_time(int myrank, int nrank, pt_timer_func_t *pttimers, pt_timer_spec_t *timer_spec, pt_gauge_info_t *gauge_info, double gpt_guess)
+fit_sub_time(int myrank, int nrank, pt_timer_func_t *pttimers, pt_gauge_func_t *ptgauges, pt_timer_spec_t *timer_spec, pt_gauge_info_t *gauge_info, double gpt_guess)
 {
     double hi_gpt, lo_gpt, lo_gpt_bound, hi_gpt_bound, gpt;
     uint64_t dt = DELTA_TICK; // dx=10ticks
@@ -169,9 +168,9 @@ fit_sub_time(int myrank, int nrank, pt_timer_func_t *pttimers, pt_timer_spec_t *
                 " ticks, nsub_min=%" PRIu64 "\n", myrank, gpt, dx, dt, nsub_min);
         }
         for (uint64_t i = 0; i < xlen; i++) {
-            pmet[i] = (uint64_t)_run_sub(nsub_min + i * dx, pttimers);
+            pmet[i] = (uint64_t)_run_sub(nsub_min + i * dx, pttimers, ptgauges);
             for (int j = 0; j < MET_REPEAT; j++) {
-                register uint64_t tmet = (uint64_t)_run_sub(nsub_min + i * dx, pttimers);
+                register uint64_t tmet = (uint64_t)_run_sub(nsub_min + i * dx, pttimers, ptgauges);
                 pmet[i] = tmet < pmet[i] ? tmet : pmet[i];
             }
         }
@@ -217,7 +216,7 @@ fit_sub_time(int myrank, int nrank, pt_timer_func_t *pttimers, pt_timer_spec_t *
 }
 
 int 
-exp_fit_gpns(int ntest, int64_t tmax, pt_timer_func_t *pttimers, double *gpns) {
+exp_fit_gpns(int ntest, int64_t tmax, pt_timer_func_t *pttimers, pt_gauge_func_t *ptgauges, double *gpns) {
     int err = PTERR_SUCCESS;
     int64_t ng, n, tpre;
     int64_t p_tm_min[64], p_tm_raw[64][ntest];
@@ -230,7 +229,7 @@ exp_fit_gpns(int ntest, int64_t tmax, pt_timer_func_t *pttimers, double *gpns) {
     tpre = 0;
     while (tpre <= tmax && n < 64) {
         for (int i = 0; i < ntest; i++) {
-            p_tm_raw[n][i] = _run_sub(ng, pttimers);
+            p_tm_raw[n][i] = _run_sub(ng, pttimers, ptgauges);
         }
         tmin = p_tm_raw[n][0];
         for (int i = 0; i < ntest; i++) {

@@ -41,7 +41,7 @@ print_usage(char *argv[])
         printf("  --rkern <kernel>    Rear kernel (none, triad, scale, copy, add, pow, dgemm, mpi_bcast)\n");
         printf("  --rsize <size>      Rear kernel memory size in KiB\n");
         printf("  --timer <timer>     Timer method (clock_gettime, mpi_wtime)\n");
-        printf("  --gauge <gauge>     Gauge method (sub_scalar)\n");
+        printf("  --gauge <gauge>     Gauge method (sub_scalar, fma_scalar, fma_avx2, fma_avx512)\n");
         printf("  --ntests <num>      Number of gauge measurements (default: 1000)\n");
         printf("  --help, -h          Show this help message\n");
     }
@@ -180,7 +180,7 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs,
                     strcpy(ptopts->fkern_name, "mpi_bcast");
                 } else {
                     fprintf(stderr, "Unknown front kernel: %s\n", argv[i + 1]);
-                    return 1;
+                    return PTERR_INVALID_ARGUMENT;
                 }
                 i++; // Skip the next argument
             }
@@ -252,7 +252,7 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs,
                     strcpy(ptopts->rkern_name, "mpi_bcast");
                 } else {
                     fprintf(stderr, "Unknown rear kernel: %s\n", argv[i + 1]);
-                    return 1;
+                    return PTERR_INVALID_ARGUMENT;
                 }
                 i++; // Skip the next argument
             }
@@ -294,7 +294,7 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs,
                     strcpy(ptopts->timer_name, "mpi_wtime");
                 } else {
                     fprintf(stderr, "Unknown timer: %s\n", argv[i + 1]);
-                    return 1;
+                    return PTERR_INVALID_ARGUMENT;
                 }
                 i++; // Skip the next argument
             }
@@ -306,9 +306,42 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs,
                     ptgauges->run_gauge = run_gauge_sub_scalar;
                     ptgauges->cleanup_gauge = cleanup_gauge_sub_scalar;
                     strcpy(ptopts->gauge_name, "sub_scalar");
+                } else if (strcmp(argv[i + 1], "fma_scalar") == 0) {
+#if defined(__x86_64__)
+                    ptopts->gauge = GAUGE_FMA_SCALAR;
+                    ptgauges->init_gauge = init_gauge_fma_scalar;
+                    ptgauges->run_gauge = run_gauge_fma_scalar;
+                    ptgauges->cleanup_gauge = cleanup_gauge_fma_scalar;
+                    strcpy(ptopts->gauge_name, "fma_scalar");
+#else
+                    fprintf(stderr, "Unknown gauge: %s\n", argv[i + 1]);
+                    return PTERR_INVALID_ARGUMENT;
+#endif
+                } else if (strcmp(argv[i + 1], "fma_avx2") == 0) {
+#if defined(__x86_64__)
+                    ptopts->gauge = GAUGE_FMA_AVX2;
+                    ptgauges->init_gauge = init_gauge_fma_avx2;
+                    ptgauges->run_gauge = run_gauge_fma_avx2;
+                    ptgauges->cleanup_gauge = cleanup_gauge_fma_avx2;
+                    strcpy(ptopts->gauge_name, "fma_avx2");
+#else
+                    fprintf(stderr, "Unknown gauge: %s\n", argv[i + 1]);
+                    return PTERR_INVALID_ARGUMENT;
+#endif
+                } else if (strcmp(argv[i + 1], "fma_avx512") == 0) {
+#if defined(__x86_64__)
+                    ptopts->gauge = GAUGE_FMA_AVX512;
+                    ptgauges->init_gauge = init_gauge_fma_avx512;
+                    ptgauges->run_gauge = run_gauge_fma_avx512;
+                    ptgauges->cleanup_gauge = cleanup_gauge_fma_avx512;
+                    strcpy(ptopts->gauge_name, "fma_avx512");
+#else
+                    fprintf(stderr, "Unknown gauge: %s\n", argv[i + 1]);
+                    return PTERR_INVALID_ARGUMENT;
+#endif
                 } else {
                     fprintf(stderr, "Unknown gauge: %s\n", argv[i + 1]);
-                    return 1;
+                    return PTERR_INVALID_ARGUMENT;
                 }
                 i++; // Skip the next argument
             }
