@@ -166,6 +166,7 @@ main(int argc, char *argv[])
     for (int i = 0; i < ptopts.ntests; i++) {
         __PTM_NOP;
         MPI_Barrier(MPI_COMM_WORLD);
+        __PTM_MFENCE;
         MPI_Barrier(MPI_COMM_WORLD);
         ptfuncs.run_fkern(PT_CALL_ID_TA_FRONT);
         register int64_t t0 = pttimers.tick();
@@ -181,6 +182,7 @@ main(int argc, char *argv[])
     for (int i = 0; i < ptopts.ntests; i++) {
         __PTM_NOP;
         MPI_Barrier(MPI_COMM_WORLD);
+        __PTM_MFENCE;
         MPI_Barrier(MPI_COMM_WORLD);
         ptfuncs.run_fkern(PT_CALL_ID_TB_FRONT);
         register int64_t t0 = pttimers.tick();
