@@ -58,6 +58,7 @@ typedef struct {
 typedef struct {
     uint64_t cy_per_op; // Cycles per operation
     double wtime_per_op; // Wall time per operation
+    double gpns; // Gauges per nanosecond
     double gpt; // Gauges per tick
 } pt_gauge_info_t;
 

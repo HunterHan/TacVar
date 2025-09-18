@@ -215,3 +215,57 @@ fit_sub_time(int myrank, int nrank, pt_timer_func_t *pttimers, pt_timer_spec_t *
 
     return PTERR_SUCCESS;
 }
+
+int 
+exp_fit_gpns(int ntest, int64_t tmax, pt_timer_func_t *pttimers, double *gpns) {
+    int err = PTERR_SUCCESS;
+    int64_t ng, n, tpre;
+    int64_t p_tm_min[64], p_tm_raw[64][ntest];
+    int64_t tmin;
+    double gpns_step_total;
+    const double r2_thrs = 0.999; // R square threshold
+
+    ng = 1;
+    n = 0;
+    tpre = 0;
+    while (tpre <= tmax && n < 64) {
+        for (int i = 0; i < ntest; i++) {
+            p_tm_raw[n][i] = _run_sub(ng, pttimers);
+        }
+        tmin = p_tm_raw[n][0];
+        for (int i = 0; i < ntest; i++) {
+            tmin = p_tm_raw[n][i] < tmin ? p_tm_raw[n][i] : tmin;
+        }
+        p_tm_min[n] = tmin;
+        ng *= 2;
+        tpre = tmin * 2;
+        n++;
+    }
+
+    /* From nmax, nmax-1 to 0, calculate R square to model t[i] = 2t[i-1] */
+    double rsquare = 1;
+    int istep = 1;
+    int ist = n - istep - 1;
+    gpns_step_total = 0;
+    while (ist >= 0 && rsquare > r2_thrs) {
+        double mean_t = 0, sum_res = 0, sum_tot = 0, t_model = p_tm_min[ist];
+        for (int i = ist; i < n; i++) {
+            mean_t += p_tm_min[i];
+        }
+        mean_t /= (istep + 1);
+        for (int i = ist; i < n; i++) {
+            sum_res += (p_tm_min[i] - t_model) * (p_tm_min[i] - t_model);
+            sum_tot += (p_tm_min[i] - mean_t) * (p_tm_min[i] - mean_t);
+            t_model = t_model * 2;
+        }
+        rsquare = 1 - sum_res / sum_tot;
+        gpns_step_total += (pow(2, ist+1) - pow(2, ist)) / (p_tm_min[ist+1] - p_tm_min[ist]);
+        istep += 1;
+        ist = n - istep - 1;
+    }
+    *gpns = gpns_step_total / (istep - 1);
+    *gpns = (int64_t)(*gpns * 1e3) / 1e3;
+
+EXIT:
+    return err;
+}

@@ -23,9 +23,32 @@
 #define __PTM_NOP __asm__ __volatile__ ("nop");
 #endif
 
+/* Memory fence for different ISAs */
+#if defined(__x86_64__) || defined(__i386__)
+#define __PTM_MFENCE __asm__ __volatile__ ("mfence" ::: "memory");
+#elif defined(__aarch64__) || defined(__arm__)
+#define __PTM_MFENCE __asm__ __volatile__ ("dmb sy" ::: "memory");
+#elif defined(__powerpc__) || defined(__ppc__) || defined(__PPC__)
+#define __PTM_MFENCE __asm__ __volatile__ ("sync" ::: "memory");
+#elif defined(__riscv)
+#define __PTM_MFENCE __asm__ __volatile__ ("fence rw,rw" ::: "memory");
+#elif defined(__s390x__)
+#define __PTM_MFENCE __asm__ __volatile__ ("bcr 15,0" ::: "memory");
+#elif defined(__sparc__)
+#define __PTM_MFENCE __asm__ __volatile__ ("membar #Sync" ::: "memory");
+#elif defined(__alpha__)
+#define __PTM_MFENCE __asm__ __volatile__ ("mb" ::: "memory");
+#elif defined(__ia64__)
+#define __PTM_MFENCE __asm__ __volatile__ ("mf" ::: "memory");
+#else
+/* Fallback to compiler barrier */
+#define __PTM_MFENCE __asm__ __volatile__ ("" ::: "memory");
+#endif
+
+
 extern int get_tspec(int ntest, pt_timer_func_t *pttimers, pt_timer_spec_t *timer_spec);
 extern int parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs, pt_timer_func_t *pttimers);
-extern int exp_guess_gauge(int myrank, int nrank, pt_timer_func_t *pttimers, pt_timer_spec_t *timer_spec, double *gpt_guess);
+extern int exp_fit_gpns(int ntest, int64_t tmax, pt_timer_func_t *pttimers, double *gpns);
 
 int 
 main(int argc, char *argv[]) 
@@ -77,21 +100,24 @@ main(int argc, char *argv[])
             ptopts.fkern_name, ptopts.fsize_b, ptopts.fsize_real_b);
         printf("Rear kernel: %s, size: %zu KiB, real size: %zu KiB\n", 
             ptopts.rkern_name, ptopts.rsize_b, ptopts.rsize_real_b);
+        fflush(stdout);
     }
+    MPI_Barrier(MPI_COMM_WORLD);
 
     /* Step 1: Get the minimum overhead and time per tick */
-    err = get_tspec(10000, &pttimers, &timer_spec);
-    _ptm_exit_on_error(err, "get_tspec");
-    pt_mpi_printf(myrank, nrank, "Timer spec: tick=%" PRIi64 ", ovh=%" PRIi64 "\n", timer_spec.tick, timer_spec.ovh);
+    // err = get_tspec(10000, &pttimers, &timer_spec);
+    // _ptm_exit_on_error(err, "get_tspec");
+    // pt_mpi_printf(myrank, nrank, "Timer spec: tick=%" PRIi64 ", ovh=%" PRIi64 "\n", timer_spec.tick, timer_spec.ovh);
 
     /* Step 2: Detect theoretical time of the gauge kernel */
     gauge_info.cy_per_op = 0;
     gauge_info.gpt = 0.0;
+    gauge_info.gpns = 0.0;
     gauge_info.wtime_per_op = 0.0;
     _ptm_exit_on_error(pttimers.init_timer(), "init_timer");
-    err = exp_guess_gauge(myrank, nrank, &pttimers, &timer_spec, &gauge_info.gpt);
-    _ptm_exit_on_error(err, "exp_guess_gauge");
-    pt_mpi_printf(myrank, nrank, "Gauge info: gpt=%.6f\n", gauge_info.gpt);
+    err = exp_fit_gpns( 100, 100000000LL, &pttimers, &gauge_info.gpns);
+    _ptm_exit_on_error(err, "exp_fit_gpns");
+    pt_mpi_printf(myrank, nrank, "Gauge info: gpns=%f\n", gauge_info.gpns);
     
         /* Step 3: Run the timing error sensor */
     MPI_Barrier(MPI_COMM_WORLD);
@@ -125,8 +151,8 @@ main(int argc, char *argv[])
         }
     }
 
-    ngs[0] = (int64_t)((double)ptopts.ta / (double)timer_spec.tick) * gauge_info.gpt;
-    ngs[1] = (int64_t)((double)ptopts.tb / (double)timer_spec.tick) * gauge_info.gpt;
+    ngs[0] = (int64_t)((double)ptopts.ta * gauge_info.gpns);
+    ngs[1] = (int64_t)((double)ptopts.tb * gauge_info.gpns);
 
     if (myrank == 0) {
         fflush(stdout);
@@ -135,8 +161,8 @@ main(int argc, char *argv[])
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
-    __PTM_NOP;
     for (int i = 0; i < ptopts.ntests; i++) {
+        __PTM_NOP;
         MPI_Barrier(MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
         ptfuncs.run_fkern(PT_CALL_ID_TA_FRONT);
@@ -151,6 +177,7 @@ main(int argc, char *argv[])
     }
 
     for (int i = 0; i < ptopts.ntests; i++) {
+        __PTM_NOP;
         MPI_Barrier(MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
         ptfuncs.run_fkern(PT_CALL_ID_TB_FRONT);
