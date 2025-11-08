@@ -24,23 +24,35 @@ typedef struct {
     size_t fsize_a, rsize_a, fsize_b, rsize_b;
     size_t fsize_real_a, rsize_real_a, fsize_real_b, rsize_real_b;
     double cut_p;
-    int fkern, rkern, timer, gauge, ntiles;
-    char fkern_name[128], rkern_name[128], timer_name[128], gauge_name[128];
+    int fkern_a, fkern_b, rkern_a, rkern_b, timer, gauge, ntiles;
+    char fkern_a_name[128], fkern_b_name[128], rkern_a_name[128], rkern_b_name[128], timer_name[128], gauge_name[128];
 } pt_opts_t;
 
 typedef struct {
-    /* Front kernel function set */
-    int (*init_fkern)(size_t flush_kib, int id, size_t *flush_kib_real);
-    void (*run_fkern)(int id);
-    void (*update_fkern_key)(int id);
-    int (*check_fkern_key)(int id, int ntests, double *perc_gap);
-    void (*cleanup_fkern)(int id);
-    /* Rear kernel function set */
-    int (*init_rkern)(size_t flush_kib, int id, size_t *flush_kib_real);
-    void (*run_rkern)(int id);
-    void (*update_rkern_key)(int id);
-    int (*check_rkern_key)(int id, int ntests, double *perc_gap);
-    void (*cleanup_rkern)(int id);
+    /* Front kernel function set for ta */
+    int (*init_fkern_a)(size_t flush_kib, int id, size_t *flush_kib_real);
+    void (*run_fkern_a)(int id);
+    void (*update_fkern_a_key)(int id);
+    int (*check_fkern_a_key)(int id, int ntests, double *perc_gap);
+    void (*cleanup_fkern_a)(int id);
+    /* Rear kernel function set for ta */
+    int (*init_rkern_a)(size_t flush_kib, int id, size_t *flush_kib_real);
+    void (*run_rkern_a)(int id);
+    void (*update_rkern_a_key)(int id);
+    int (*check_rkern_a_key)(int id, int ntests, double *perc_gap);
+    void (*cleanup_rkern_a)(int id);
+    /* Front kernel function set for tb */
+    int (*init_fkern_b)(size_t flush_kib, int id, size_t *flush_kib_real);
+    void (*run_fkern_b)(int id);
+    void (*update_fkern_b_key)(int id);
+    int (*check_fkern_b_key)(int id, int ntests, double *perc_gap);
+    void (*cleanup_fkern_b)(int id);
+    /* Rear kernel function set for tb */
+    int (*init_rkern_b)(size_t flush_kib, int id, size_t *flush_kib_real);
+    void (*run_rkern_b)(int id);
+    void (*update_rkern_b_key)(int id);
+    int (*check_rkern_b_key)(int id, int ntests, double *perc_gap);
+    void (*cleanup_rkern_b)(int id);
 } pt_kern_func_t;
 
 typedef struct {

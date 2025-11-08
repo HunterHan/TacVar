@@ -75,13 +75,13 @@ main(int argc, char *argv[])
     _ptm_exit_on_error(parse_ptargs(argc, argv, &ptopts, &ptfuncs, &pttimers, &ptgauges), "parse_ptargs");
 
     /* Initialize kernels */
-    err = ptfuncs.init_fkern(ptopts.fsize_a, PT_CALL_ID_TA_FRONT, &ptopts.fsize_real_a);
+    err = ptfuncs.init_fkern_a(ptopts.fsize_a, PT_CALL_ID_TA_FRONT, &ptopts.fsize_real_a);
     _ptm_exit_on_error(err, "init_fkern_a");
-    err = ptfuncs.init_rkern(ptopts.rsize_a, PT_CALL_ID_TA_REAR, &ptopts.rsize_real_a);
+    err = ptfuncs.init_rkern_a(ptopts.rsize_a, PT_CALL_ID_TA_REAR, &ptopts.rsize_real_a);
     _ptm_exit_on_error(err, "init_rkern_a");
-    err = ptfuncs.init_fkern(ptopts.fsize_b, PT_CALL_ID_TB_FRONT, &ptopts.fsize_real_b);
+    err = ptfuncs.init_fkern_b(ptopts.fsize_b, PT_CALL_ID_TB_FRONT, &ptopts.fsize_real_b);
     _ptm_exit_on_error(err, "init_fkern_b");
-    err = ptfuncs.init_rkern(ptopts.rsize_b, PT_CALL_ID_TB_REAR, &ptopts.rsize_real_b);
+    err = ptfuncs.init_rkern_b(ptopts.rsize_b, PT_CALL_ID_TB_REAR, &ptopts.rsize_real_b);
     _ptm_exit_on_error(err, "init_rkern_b");
 
     /* Initialize gauge */
@@ -94,14 +94,14 @@ main(int argc, char *argv[])
         printf("Gauge: %s\n", ptopts.gauge_name);
         printf("ta flush info:\n");
         printf("Front kernel: %s, size: %zu KiB, real size: %zu KiB\n", 
-            ptopts.fkern_name, ptopts.fsize_a, ptopts.fsize_real_a);
+            ptopts.fkern_a_name, ptopts.fsize_a, ptopts.fsize_real_a);
         printf("Rear kernel: %s, size: %zu KiB, real size: %zu KiB\n", 
-            ptopts.rkern_name, ptopts.rsize_a, ptopts.rsize_real_a);
+            ptopts.rkern_a_name, ptopts.rsize_a, ptopts.rsize_real_a);
         printf("tb flush info:\n");
         printf("Front kernel: %s, size: %zu KiB, real size: %zu KiB\n", 
-            ptopts.fkern_name, ptopts.fsize_b, ptopts.fsize_real_b);
+            ptopts.fkern_b_name, ptopts.fsize_b, ptopts.fsize_real_b);
         printf("Rear kernel: %s, size: %zu KiB, real size: %zu KiB\n", 
-            ptopts.rkern_name, ptopts.rsize_b, ptopts.rsize_real_b);
+            ptopts.rkern_b_name, ptopts.rsize_b, ptopts.rsize_real_b);
         fflush(stdout);
     }
     MPI_Barrier(MPI_COMM_WORLD);
@@ -168,15 +168,15 @@ main(int argc, char *argv[])
         MPI_Barrier(MPI_COMM_WORLD);
         __PTM_MFENCE;
         MPI_Barrier(MPI_COMM_WORLD);
-        ptfuncs.run_fkern(PT_CALL_ID_TA_FRONT);
+        ptfuncs.run_fkern_a(PT_CALL_ID_TA_FRONT);
         register int64_t t0 = pttimers.tick();
         // __timer_tick_clock_gettime;
         ptgauges.run_gauge(ngs[0]);
         p_tmet[0][i] = pttimers.tock() - t0;
         // __timer_tock_clock_gettime(p_tmet[0][i]);
-        ptfuncs.run_rkern(PT_CALL_ID_TA_REAR);
-        ptfuncs.update_fkern_key(PT_CALL_ID_TA_FRONT);
-        ptfuncs.update_rkern_key(PT_CALL_ID_TA_REAR);
+        ptfuncs.run_rkern_a(PT_CALL_ID_TA_REAR);
+        ptfuncs.update_fkern_a_key(PT_CALL_ID_TA_FRONT);
+        ptfuncs.update_rkern_a_key(PT_CALL_ID_TA_REAR);
     }
 
     for (int i = 0; i < ptopts.ntests; i++) {
@@ -184,31 +184,31 @@ main(int argc, char *argv[])
         MPI_Barrier(MPI_COMM_WORLD);
         __PTM_MFENCE;
         MPI_Barrier(MPI_COMM_WORLD);
-        ptfuncs.run_fkern(PT_CALL_ID_TB_FRONT);
+        ptfuncs.run_fkern_b(PT_CALL_ID_TB_FRONT);
         register int64_t t0 = pttimers.tick();
         // __timer_tick_clock_gettime;
         ptgauges.run_gauge(ngs[1]);
         p_tmet[1][i] = pttimers.tock() - t0;
         // __timer_tock_clock_gettime(p_tmet[1][i]);
-        ptfuncs.run_rkern(PT_CALL_ID_TB_REAR);
-        ptfuncs.update_fkern_key(PT_CALL_ID_TB_FRONT);
-        ptfuncs.update_rkern_key(PT_CALL_ID_TB_REAR);
+        ptfuncs.run_rkern_b(PT_CALL_ID_TB_REAR);
+        ptfuncs.update_fkern_b_key(PT_CALL_ID_TB_FRONT);
+        ptfuncs.update_rkern_b_key(PT_CALL_ID_TB_REAR);
     }
     double perc_gap_ta_front, perc_gap_ta_rear, perc_gap_tb_front, perc_gap_tb_rear;
     
-    ptfuncs.check_fkern_key(PT_CALL_ID_TA_FRONT, ptopts.ntests, &perc_gap_ta_front);
+    ptfuncs.check_fkern_a_key(PT_CALL_ID_TA_FRONT, ptopts.ntests, &perc_gap_ta_front);
     if (myrank == 0) {
         printf("TA Front kernel percentage gap: %f%%\n", perc_gap_ta_front);
     }
-    ptfuncs.check_rkern_key(PT_CALL_ID_TA_REAR, ptopts.ntests, &perc_gap_ta_rear);
+    ptfuncs.check_rkern_a_key(PT_CALL_ID_TA_REAR, ptopts.ntests, &perc_gap_ta_rear);
     if (myrank == 0) {
         printf("TA Rear kernel percentage gap: %f%%\n", perc_gap_ta_rear);
     }
-    ptfuncs.check_fkern_key(PT_CALL_ID_TB_FRONT, ptopts.ntests, &perc_gap_tb_front);
+    ptfuncs.check_fkern_b_key(PT_CALL_ID_TB_FRONT, ptopts.ntests, &perc_gap_tb_front);
     if (myrank == 0) {
         printf("TB Front kernel percentage gap: %.6f%%\n", perc_gap_tb_front);
     }
-    ptfuncs.check_rkern_key(PT_CALL_ID_TB_REAR, ptopts.ntests, &perc_gap_tb_rear);
+    ptfuncs.check_rkern_b_key(PT_CALL_ID_TB_REAR, ptopts.ntests, &perc_gap_tb_rear);
     if (myrank == 0) {
         printf("TB Rear kernel percentage gap: %.6f%%\n", perc_gap_tb_rear);
     }
@@ -316,10 +316,10 @@ EXIT:
     }
 
     /* Cleanup kernels */
-    ptfuncs.cleanup_fkern(PT_CALL_ID_TA_FRONT);
-    ptfuncs.cleanup_rkern(PT_CALL_ID_TA_REAR);
-    ptfuncs.cleanup_fkern(PT_CALL_ID_TB_FRONT);
-    ptfuncs.cleanup_rkern(PT_CALL_ID_TB_REAR);
+    ptfuncs.cleanup_fkern_a(PT_CALL_ID_TA_FRONT);
+    ptfuncs.cleanup_rkern_a(PT_CALL_ID_TA_REAR);
+    ptfuncs.cleanup_fkern_b(PT_CALL_ID_TB_FRONT);
+    ptfuncs.cleanup_rkern_b(PT_CALL_ID_TB_REAR);
 
     /* Cleanup gauge */
     ptgauges.cleanup_gauge();
