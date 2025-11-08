@@ -58,6 +58,7 @@ int init_kern_scale(size_t flush_kib, int id, size_t *flush_kib_real) {
 }
 
 void run_kern_scale(int id) {
+    if (p_kdata_head[id] == NULL) return;
     data_scale_t *d = p_kdata_head[id];
     for (uint64_t i = 0; i < d->npf; i++) {
         d->a[i] = 1.0001 * d->b[i];
@@ -75,8 +76,8 @@ void update_key_scale(int id) {
 }
 
 int check_key_scale(int id, int ntests, double *perc_gap) {
+    if (p_kdata_head[id] == NULL) return PTERR_SUCCESS;
     int err = PTERR_SUCCESS;
-    
     double key_target = 0;
     for (uint64_t i = 0; i < p_kdata_head[id]->npf; i++) {
         key_target += 1.0001 * (1.01 + i);

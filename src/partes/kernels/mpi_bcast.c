@@ -53,6 +53,7 @@ int init_kern_mpi_bcast(size_t flush_kib, int id, size_t *flush_kib_real) {
 }
 
 void run_kern_mpi_bcast(int id) {
+    if (p_kdata_head[id] == NULL) return;
     data_mpi_bcast_t *d = p_kdata_head[id];
     if (d->npf) {
         MPI_Bcast((void *)d->a, d->npf, MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -69,6 +70,7 @@ void update_key_mpi_bcast(int id) {
 }
 
 int check_key_mpi_bcast(int id, int ntests, double *perc_gap) {
+    if (p_kdata_head[id] == NULL) return PTERR_SUCCESS;
     int err = PTERR_SUCCESS;
     
     double key_target = 0;

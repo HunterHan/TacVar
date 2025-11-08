@@ -69,6 +69,7 @@ int init_kern_add(size_t flush_kib, int id, size_t *flush_kib_real) {
 }
 
 void run_kern_add(int id) {
+    if (p_kdata_head[id] == NULL) return;
     for (uint64_t i = 0; i < p_kdata_head[id]->npf; i++) {
         p_kdata_head[id]->a[i] = p_kdata_head[id]->b[i] + p_kdata_head[id]->c[i];
     }
@@ -85,6 +86,7 @@ void update_key_add(int id) {
 }
 
 int check_key_add(int id, int ntests, double *perc_gap) {
+    if (p_kdata_head[id] == NULL) return PTERR_SUCCESS;
     int err = PTERR_SUCCESS;
     
     double key_target = 0;

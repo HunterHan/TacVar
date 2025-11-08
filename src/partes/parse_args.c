@@ -37,10 +37,12 @@ print_usage(char *argv[])
         printf("  --ntiles <num>      Number of tiles (default: 100)\n");
         printf("  --cut-p <p>         p in (0.0, 1.0), cut deviation after p for W calculation (default: 1.0)\n");
         printf("  --fkern <kernel>    Front kernel (none, triad, scale, copy, add, pow, dgemm, mpi_bcast)\n");
-        printf("  --fsize <size>      Front kernel memory size in KiB\n");
+        printf("  --fsize-a <size>    The memory size of ta's fkern in KiB\n");
+        printf("  --fsize-b <size>    The memory size of tb's fkern in KiB\n");
         printf("  --rkern <kernel>    Rear kernel (none, triad, scale, copy, add, pow, dgemm, mpi_bcast)\n");
-        printf("  --rsize <size>      Rear kernel memory size in KiB\n");
-        printf("  --timer <timer>     Timer method (clock_gettime, mpi_wtime)\n");
+        printf("  --rsize-a <size>    The memory size of ta's rkern in KiB\n");
+        printf("  --rsize-b <size>    The memory size of tb's rkern in KiB\n");
+        printf("  --timer <timer>     Timer method (clock_gettime, mpi_wtime, tsc_asym)\n");
         printf("  --gauge <gauge>     Gauge method (sub_scalar, fma_scalar, fma_avx2, fma_avx512)\n");
         printf("  --ntests <num>      Number of gauge measurements (default: 1000)\n");
         printf("  --help, -h          Show this help message\n");
@@ -111,8 +113,7 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs,
                 ptopts->tb = atol(argv[i + 1]);
                 i++; // Skip the next argument
             }
-        }
-        if (strcmp(argv[i], "--fkern") == 0) {
+        } else if (strcmp(argv[i], "--fkern") == 0) {
             if (i + 1 < argc) {
                 if (strcmp(argv[i + 1], "none") == 0) {
                     ptopts->fkern = KERN_NONE;
@@ -184,7 +185,7 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs,
                 }
                 i++; // Skip the next argument
             }
-        }  else if (strcmp(argv[i], "--rkern") == 0) {
+        } else if (strcmp(argv[i], "--rkern") == 0) {
             if (i + 1 < argc) {
                 if (strcmp(argv[i + 1], "none") == 0) {
                     ptopts->rkern = KERN_NONE;
@@ -292,7 +293,14 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs,
                     pttimers->tock = tock_mpi_wtime;
                     pttimers->get_stamp = get_stamp_mpi_wtime;
                     strcpy(ptopts->timer_name, "mpi_wtime");
-                } else {
+                }  else if (strcmp(argv[i + 1], "tsc_asym") == 0) {
+                    ptopts->timer = TIMER_TSC_ASYM;
+                    pttimers->init_timer = init_timer_tsc_asym;
+                    pttimers->tick = tick_tsc_asym;
+                    pttimers->tock = tock_tsc_asym;
+                    pttimers->get_stamp = get_stamp_tsc_asym;
+                    strcpy(ptopts->timer_name, "tsc_asym");
+                }   else {
                     fprintf(stderr, "Unknown timer: %s\n", argv[i + 1]);
                     return PTERR_INVALID_ARGUMENT;
                 }
@@ -360,9 +368,12 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs,
                 ptopts->cut_p = atof(argv[i + 1]);
                 i++; // Skip the next argument
             }
-        }  else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+        } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             print_usage(argv);
             return PTERR_EXIT_FLAG;
+        } else {
+            fprintf(stderr, "Unknown argument: %s\n", argv[i]);
+            return PTERR_INVALID_ARGUMENT;
         }
     }
 

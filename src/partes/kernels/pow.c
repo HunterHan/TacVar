@@ -58,6 +58,7 @@ int init_kern_pow(size_t flush_kib, int id, size_t *flush_kib_real) {
 }
 
 void run_kern_pow(int id) {
+    if (p_kdata_head[id] == NULL) return;
     data_pow_t *d = p_kdata_head[id];
     for (uint64_t i = 0; i < d->npf; i++) {
         d->a[i] = pow(d->b[i], 1.0001);
@@ -75,8 +76,9 @@ void update_key_pow(int id) {
 }
 
 int check_key_pow(int id, int ntests, double *perc_gap) {
+    if (p_kdata_head[id] == NULL) return PTERR_SUCCESS;
+
     int err = PTERR_SUCCESS;
-    
     double key_target = 0;
     for (uint64_t i = 0; i < p_kdata_head[id]->npf; i++) {
         key_target += pow(1.01 + i * 0.001, 1.0001);

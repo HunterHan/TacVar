@@ -85,6 +85,7 @@ int init_kern_dgemm(size_t flush_kib, int id, size_t *flush_kib_real) {
 }
 
 void run_kern_dgemm(int id) {
+    if (p_kdata_head[id] == NULL) return;
     data_dgemm_t *d = p_kdata_head[id];
     uint64_t n = d->sq_npf;
     for (uint64_t i = 0; i < n; i++) {
@@ -109,6 +110,7 @@ void update_key_dgemm(int id) {
 }
 
 int check_key_dgemm(int id, int ntests, double *perc_gap) {
+    if (p_kdata_head[id] == NULL) return PTERR_SUCCESS;
     int err = PTERR_SUCCESS;
     
     double key_target = 0;

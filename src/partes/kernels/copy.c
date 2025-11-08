@@ -60,6 +60,7 @@ int init_kern_copy(size_t flush_kib, int id, size_t *flush_kib_real) {
 }
 
 void run_kern_copy(int id) {
+    if (p_kdata_head[id] == NULL) return;
     if (p_kdata_head[id]->npf) {
         for (uint64_t i = 0; i < p_kdata_head[id]->npf; i++) {
             p_kdata_head[id]->a[i] = p_kdata_head[id]->b[i];
@@ -78,6 +79,7 @@ void update_key_copy(int id) {
 }
 
 int check_key_copy(int id, int ntests, double *perc_gap) {
+    if (p_kdata_head[id] == NULL) return PTERR_SUCCESS;
     int err = PTERR_SUCCESS;
     
     double key_target = 0;

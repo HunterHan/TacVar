@@ -69,6 +69,7 @@ int init_kern_triad(size_t flush_kib, int id, size_t *flush_kib_real) {
 }
 
 void run_kern_triad(int id) {
+    if (p_kdata_head[id] == NULL) return;
     data_triad_t *d = p_kdata_head[id];
     for (uint64_t i = 0; i < d->npf; i++) {
         d->a[i] = 0.42 * d->b[i] + d->c[i];
@@ -86,6 +87,7 @@ void update_key_triad(int id) {
 }
 
 int check_key_triad(int id, int ntests, double *perc_gap) {
+    if (p_kdata_head[id] == NULL) return PTERR_SUCCESS;
     int err = PTERR_SUCCESS;
     
     double key_target = 0;
