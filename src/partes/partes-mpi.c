@@ -232,7 +232,7 @@ main(int argc, char *argv[])
         calc_cdf_i64(p_tmet_all[1], ptopts.ntests * nrank, p_cdf[1], ptopts.ntiles);
         calc_w(p_cdf[0], p_cdf[1], ptopts.ntiles, ptopts.cut_p, &w);
         printf("Percentage cut: %f\nTime gap: %" PRIi64 "ns\n", ptopts.cut_p, ptopts.tb - ptopts.ta);
-        printf("Percentile, Ta, Tb, Gap\n");
+        printf("Quantile, W(Ta), W(Tb), W(Tb)-W(Ta)\n");
         printf("0, %" PRIi64 ", %" PRIi64 ", %" PRIi64 "\n",
             p_cdf[0][0], p_cdf[1][0], p_cdf[1][0] - p_cdf[0][0]);
         printf("50, %" PRIi64 ", %" PRIi64 ", %" PRIi64 "\n",
