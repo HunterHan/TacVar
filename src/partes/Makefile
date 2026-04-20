@@ -1,6 +1,6 @@
 CC ?= mpicc
 
-CFLAGS = -Wall -Wextra -std=c99 -O2 -save-temps=obj
+CFLAGS = -Wall -Wextra -std=c99 -O2
 
 # --- Dependencies ---
 # Prefer env.bash to export PAPI_HOME/LIKWID_HOME/USE_*.
