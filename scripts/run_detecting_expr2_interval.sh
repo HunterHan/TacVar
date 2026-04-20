@@ -78,7 +78,7 @@ date
 # Per combo:
 #   <timestamp>/<timer>/<combo>/meta.md
 #   <timestamp>/<timer>/<combo>/<timer>_walks/w####_ta<ns>/...
-EXPR_NAME="detecting.expr1.fsize"
+EXPR_NAME="detecting.expr2.interval"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC_DIR="${SCRIPT_DIR}/../src/partes"
@@ -119,7 +119,7 @@ GAUGE="${GAUGE:-sub_scalar}"
 
 # Interval sweep (normal mean for gen_walklist.py): space-separated list in ns.
 # Default is single 10000.
-MU_LIST="${MU_LIST:-10000}"
+MU_LIST="${MU_LIST:-1000 10000 100000 1000000 10000000}"
 # Single walk list at OUT_ROOT uses --mu-ns WALK_MU_NS (default: first token of MU_LIST).
 WALK_MU_NS="${WALK_MU_NS:-}"
 
@@ -147,7 +147,7 @@ NTILES="${NTILES:-100}"
 CUT_P="${CUT_P:-0.995}"
 
 # Front-kernel fsize sweep list (KiB)
-FSIZE_LIST=(32 64 128 256 512 1024 2048 4096)
+FSIZE_LIST=(4096)
 # FSIZE_LIST=(2048)
 
 # This expr will use a fixed single base time (1000ns) in walk_list; BASE_NS / SIGMA / NWALKS / SEED are not used.

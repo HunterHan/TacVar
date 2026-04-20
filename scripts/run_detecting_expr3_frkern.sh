@@ -78,7 +78,7 @@ date
 # Per combo:
 #   <timestamp>/<timer>/<combo>/meta.md
 #   <timestamp>/<timer>/<combo>/<timer>_walks/w####_ta<ns>/...
-EXPR_NAME="detecting.expr1.fsize"
+EXPR_NAME="detecting.expr3.frkern"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC_DIR="${SCRIPT_DIR}/../src/partes"
@@ -124,8 +124,8 @@ MU_LIST="${MU_LIST:-10000}"
 WALK_MU_NS="${WALK_MU_NS:-}"
 
 # Kernel search spaces (defaults kept minimal; can override via environment).
-FKERN_LIST="${FKERN_LIST:-copy}"
-RKERN_LIST="${RKERN_LIST:-none}"
+FKERN_LIST="${FKERN_LIST:-copy add scale triad pow dgemm}"
+RKERN_LIST="${RKERN_LIST:-copy add scale triad pow dgemm}"
 
 # TIMER_LIST: space-separated list of timers, e.g. "clock_gettime mpi_wtime".
 # If not set, fall back to single TIMER or default clock_gettime.
@@ -147,7 +147,7 @@ NTILES="${NTILES:-100}"
 CUT_P="${CUT_P:-0.995}"
 
 # Front-kernel fsize sweep list (KiB)
-FSIZE_LIST=(32 64 128 256 512 1024 2048 4096)
+FSIZE_LIST=(4096)
 # FSIZE_LIST=(2048)
 
 # This expr will use a fixed single base time (1000ns) in walk_list; BASE_NS / SIGMA / NWALKS / SEED are not used.

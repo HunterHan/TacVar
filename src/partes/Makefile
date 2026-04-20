@@ -4,7 +4,7 @@ CFLAGS = -Wall -Wextra -std=c99 -O2
 
 # --- Dependencies ---
 # Prefer env.bash to export PAPI_HOME/LIKWID_HOME/USE_*.
-PAPI_PREFIX ?= $(PAPI_HOME)
+PAPI_PREFIX ?= $(or $(PAPI_HOME),/home/hpchzy/opt/papi-7.2.0)
 LIKWID_PREFIX ?= $(LIKWID_HOME)
 
 # Optional local prefix (disabled by default). If enabled, it is appended.
@@ -91,7 +91,6 @@ ifeq ($(USE_TSC),1)
   TIMER_SRCS += $(TIMERDIR)/tsc_asym.c
 endif
 
-TIMER_SRCS += $(TIMERDIR)/tsc_asym.c
 TIMER_MPI_OBJS = $(patsubst $(TIMERDIR)/%.c,$(TIMERDIR)/%-mpi.o,$(TIMER_SRCS))
 
 # All object files for partes-mpi

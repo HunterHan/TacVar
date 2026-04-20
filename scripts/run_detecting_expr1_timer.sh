@@ -1,4 +1,5 @@
 #!/bin/bash -e
+set -euo pipefail
 pkill -u $(whoami) -9 "mpirun" || true
 pkill -u $(whoami) -9 "python3" || true
 
