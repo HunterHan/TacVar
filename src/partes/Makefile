@@ -20,6 +20,13 @@ ifeq ($(USE_LOCAL),1)
   LIBDIRS  += -L$(LOCAL_PREFIX)/lib -L$(LOCAL_PREFIX)/lib64
 endif
 
+TSC_CHECK := $(shell lscpu |grep -i tsc 2>/dev/null)
+ifneq ($(strip $(TSC_CHECK)),)
+  USE_TSC := 1
+else
+  USE_TSC := 0
+endif
+
 # Enable PAPI by setting USE_PAPI=1 (and ensure PAPI_PREFIX is correct).
 # If headers/libs are missing, automatically force USE_PAPI=0.
 USE_PAPI ?= 0
@@ -80,6 +87,10 @@ endif
 ifeq ($(USE_LIKWID),1)
   TIMER_SRCS += $(TIMERDIR)/likwid_timer.c
 endif
+ifeq ($(USE_TSC),1)
+  TIMER_SRCS += $(TIMERDIR)/tsc_asym.c
+endif
+
 TIMER_SRCS += $(TIMERDIR)/tsc_asym.c
 TIMER_MPI_OBJS = $(patsubst $(TIMERDIR)/%.c,$(TIMERDIR)/%-mpi.o,$(TIMER_SRCS))
 
