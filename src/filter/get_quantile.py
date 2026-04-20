@@ -10,7 +10,7 @@ import pandas as pd
 
 def read_csvs(dir_path, col, q=0.5):
     dfs = []
-    files = os.listdir(dir_path)
+    files = sorted(f for f in os.listdir(dir_path) if f.endswith(".csv"))
     for i in range(0, len(files)):
         df = pd.read_csv(dir_path + '/' + files[i], header=None)
         dfs.append(df)

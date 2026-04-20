@@ -44,8 +44,15 @@ print_usage(char *argv[])
         printf("  --rkern-b <kernel>  Rear kernel for tb (none, triad, scale, copy, add, pow, dgemm, mpi_bcast)\n");
         printf("  --rsize-a <size>    The memory size of ta's rkern in KiB\n");
         printf("  --rsize-b <size>    The memory size of tb's rkern in KiB\n");
-        printf("  --timer <timer>     Timer method (clock_gettime, mpi_wtime, tsc_asym)\n");
-        printf("  --gauge <gauge>     Gauge method (sub_scalar, fma_scalar, fma_avx2, fma_avx512)\n");
+        printf("  --timer <timer>     Timer method (clock_gettime, mpi_wtime, tsc_asym");
+#ifdef USE_PAPI
+        printf(", papi, papix6");
+#endif
+#ifdef USE_LIKWID
+        printf(", likwid");
+#endif
+        printf(")\n");
+        printf("  --gauge <gauge>     Gauge method (sub_scalar, sub_scalar_2p, fma_scalar, fma_avx2, fma_avx512)\n");
         printf("  --ntests <num>      Number of gauge measurements (default: 1000)\n");
         printf("  --help, -h          Show this help message\n");
     }
@@ -454,12 +461,50 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs,
                     pttimers->get_stamp = get_stamp_mpi_wtime;
                     strcpy(ptopts->timer_name, "mpi_wtime");
                 }  else if (strcmp(argv[i + 1], "tsc_asym") == 0) {
+#ifdef __x86_64__
                     ptopts->timer = TIMER_TSC_ASYM;
                     pttimers->init_timer = init_timer_tsc_asym;
                     pttimers->tick = tick_tsc_asym;
                     pttimers->tock = tock_tsc_asym;
                     pttimers->get_stamp = get_stamp_tsc_asym;
                     strcpy(ptopts->timer_name, "tsc_asym");
+#endif
+                } else if (strcmp(argv[i + 1], "papi") == 0) {
+#ifdef USE_PAPI
+                    ptopts->timer = TIMER_PAPI;
+                    pttimers->init_timer = init_timer_papi;
+                    pttimers->tick = tick_papi;
+                    pttimers->tock = tock_papi;
+                    pttimers->get_stamp = get_stamp_papi;
+                    strcpy(ptopts->timer_name, "papi");
+#else
+                    fprintf(stderr, "Timer 'papi' not built (rebuild with USE_PAPI=1).\n");
+                    return PTERR_INVALID_ARGUMENT;
+#endif
+                } else if (strcmp(argv[i + 1], "papix6") == 0) {
+#ifdef USE_PAPI
+                    ptopts->timer = TIMER_PAPIX6;
+                    pttimers->init_timer = init_timer_papix6;
+                    pttimers->tick = tick_papix6;
+                    pttimers->tock = tock_papix6;
+                    pttimers->get_stamp = get_stamp_papix6;
+                    strcpy(ptopts->timer_name, "papix6");
+#else
+                    fprintf(stderr, "Timer 'papix6' not built (rebuild with USE_PAPI=1).\n");
+                    return PTERR_INVALID_ARGUMENT;
+#endif
+                } else if (strcmp(argv[i + 1], "likwid") == 0) {
+#ifdef USE_LIKWID
+                    ptopts->timer = TIMER_LIKWID;
+                    pttimers->init_timer = init_timer_likwid;
+                    pttimers->tick = tick_likwid;
+                    pttimers->tock = tock_likwid;
+                    pttimers->get_stamp = get_stamp_likwid;
+                    strcpy(ptopts->timer_name, "likwid");
+#else
+                    fprintf(stderr, "Timer 'likwid' not built (rebuild with USE_LIKWID=1).\n");
+                    return PTERR_INVALID_ARGUMENT;
+#endif
                 }   else {
                     fprintf(stderr, "Unknown timer: %s\n", argv[i + 1]);
                     return PTERR_INVALID_ARGUMENT;
@@ -474,6 +519,18 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs,
                     ptgauges->run_gauge = run_gauge_sub_scalar;
                     ptgauges->cleanup_gauge = cleanup_gauge_sub_scalar;
                     strcpy(ptopts->gauge_name, "sub_scalar");
+                } else if (strcmp(argv[i + 1], "none") == 0){
+                    ptopts->gauge = GAUGE_NONE;
+                    ptgauges->init_gauge = init_gauge_none;
+                    ptgauges->run_gauge = run_gauge_none;
+                    ptgauges->cleanup_gauge = cleanup_gauge_none;
+                    strcpy(ptopts->gauge_name, "none");
+                } else if (strcmp(argv[i + 1], "sub_scalar_2p") == 0){
+                    ptopts->gauge = GAUGE_SUB_SCALAR_2P;
+                    ptgauges->init_gauge = init_gauge_sub_scalar_2p;
+                    ptgauges->run_gauge = run_gauge_sub_scalar_2p;
+                    ptgauges->cleanup_gauge = cleanup_gauge_sub_scalar_2p;
+                    strcpy(ptopts->gauge_name, "sub_scalar_2p");
                 } else if (strcmp(argv[i + 1], "fma_scalar") == 0) {
 #if defined(__x86_64__)
                     ptopts->gauge = GAUGE_FMA_SCALAR;

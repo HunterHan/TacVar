@@ -35,6 +35,8 @@ const char *get_pterr_str(enum pterr err) {
             return "File open failed";
         case PTERR_KEY_CHECK_FAILED:
             return "Key check failed";
+        case PTERR_TIMER_INIT_FAILED:
+            return "Timer init failed";
         default:
             return "Unknown error";
     }

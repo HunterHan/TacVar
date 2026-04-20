@@ -11,6 +11,13 @@
 enum timer_name {
     TIMER_CLOCK_GETTIME = 0,
     TIMER_MPI_WTIME,
+#ifdef USE_PAPI
+    TIMER_PAPI,
+    TIMER_PAPIX6,
+#endif
+#ifdef USE_LIKWID
+    TIMER_LIKWID,
+#endif
 #ifdef __x86_64__
     TIMER_TSC_ASYM
 #endif
@@ -25,6 +32,25 @@ int init_timer_mpi_wtime(void);
 int64_t tick_mpi_wtime(void);
 int64_t tock_mpi_wtime(void);
 int64_t get_stamp_mpi_wtime(void);
+
+#ifdef USE_PAPI
+int init_timer_papi(void);
+int64_t tick_papi(void);
+int64_t tock_papi(void);
+int64_t get_stamp_papi(void);
+
+int init_timer_papix6(void);
+int64_t tick_papix6(void);
+int64_t tock_papix6(void);
+int64_t get_stamp_papix6(void);
+#endif
+
+#ifdef USE_LIKWID
+int init_timer_likwid(void);
+int64_t tick_likwid(void);
+int64_t tock_likwid(void);
+int64_t get_stamp_likwid(void);
+#endif
 
 #ifdef __x86_64__
 int init_timer_tsc_asym(void);

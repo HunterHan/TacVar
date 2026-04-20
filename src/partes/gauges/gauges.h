@@ -10,6 +10,8 @@
 enum gauge_name {
     GAUGE_SUB_INTRINSIC = 0,
     GAUGE_SUB_SCALAR,
+    GAUGE_NONE,
+    GAUGE_SUB_SCALAR_2P,
     GAUGE_FMA_SCALAR,
     GAUGE_FMA_AVX2,
     GAUGE_FMA_AVX512
@@ -19,6 +21,16 @@ enum gauge_name {
 int init_gauge_sub_scalar(void);
 void run_gauge_sub_scalar(int64_t n);
 void cleanup_gauge_sub_scalar(void);
+
+// NONE gauge
+int init_gauge_none(void);
+void run_gauge_none(int64_t n);
+void cleanup_gauge_none(void);
+
+// SUB_SCALAR_2P gauge
+int init_gauge_sub_scalar_2p(void);
+void run_gauge_sub_scalar_2p(int64_t n);
+void cleanup_gauge_sub_scalar_2p(void);
 
 // FMA_SCALAR gauge
 int init_gauge_fma_scalar(void);
