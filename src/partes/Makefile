@@ -1,7 +1,58 @@
-CC = mpicc
-CFLAGS = -Wall -Wextra -std=c99 -O2
-LDFLAGS = -lm
-MPIFLAGS = -DPTOPT_USE_MPI
+CC ?= mpicc
+
+CFLAGS = -Wall -Wextra -std=c99 -O2 -save-temps=obj
+
+# --- Dependencies ---
+# Prefer env.bash to export PAPI_HOME/LIKWID_HOME/USE_*.
+PAPI_PREFIX ?= $(PAPI_HOME)
+LIKWID_PREFIX ?= $(LIKWID_HOME)
+
+# Optional local prefix (disabled by default). If enabled, it is appended.
+USE_LOCAL ?= 0
+LOCAL_PREFIX ?= $(HOME)/local
+
+INCLUDES =
+LIBDIRS  =
+LIBS     = -lm
+
+ifeq ($(USE_LOCAL),1)
+  INCLUDES += -I$(LOCAL_PREFIX)/include
+  LIBDIRS  += -L$(LOCAL_PREFIX)/lib -L$(LOCAL_PREFIX)/lib64
+endif
+
+# Enable PAPI by setting USE_PAPI=1 (and ensure PAPI_PREFIX is correct).
+# If headers/libs are missing, automatically force USE_PAPI=0.
+USE_PAPI ?= 0
+ifneq ($(USE_PAPI),0)
+  ifeq ($(wildcard $(PAPI_PREFIX)/include/papi.h),)
+    USE_PAPI := 0
+  endif
+endif
+ifeq ($(USE_PAPI),1)
+  MPIFLAGS += -DUSE_PAPI
+  INCLUDES += -I$(PAPI_PREFIX)/include
+  LIBDIRS  += -L$(PAPI_PREFIX)/lib -L$(PAPI_PREFIX)/lib64
+  LIBS     += -lpapi
+endif
+
+# Enable LIKWID by setting USE_LIKWID=1 (and ensure LIKWID_PREFIX is correct).
+# If headers/libs are missing, automatically force USE_LIKWID=0.
+USE_LIKWID ?= 0
+ifneq ($(USE_LIKWID),0)
+  ifeq ($(wildcard $(LIKWID_PREFIX)/include/likwid.h),)
+    USE_LIKWID := 0
+  endif
+endif
+# Enable LIKWID by setting USE_LIKWID=1 (and ensure LIKWID_PREFIX is correct).
+ifeq ($(USE_LIKWID),1)
+  MPIFLAGS += -DUSE_LIKWID
+  INCLUDES += -I$(LIKWID_PREFIX)/include
+  LIBDIRS  += -L$(LIKWID_PREFIX)/lib -L$(LIKWID_PREFIX)/lib64
+  LIBS     += -llikwid
+endif
+
+LDFLAGS = $(INCLUDES) $(LIBDIRS) $(LIBS)
+MPIFLAGS += -DPTOPT_USE_MPI
 
 # Source directories
 KERNELDIR = kernels
@@ -22,7 +73,15 @@ KERNEL_MPI_OBJS = $(KERNELDIR)/none-mpi.o $(KERNELDIR)/triad-mpi.o $(KERNELDIR)/
 
 
 # Timer object files for partes-mpi (with MPI flag)
-TIMER_MPI_OBJS = $(patsubst $(TIMERDIR)/%.c,$(TIMERDIR)/%-mpi.o,$(wildcard $(TIMERDIR)/*.c))
+TIMER_SRCS = $(TIMERDIR)/clock_gettime.c $(TIMERDIR)/mpi_wtime.c
+ifeq ($(USE_PAPI),1)
+  TIMER_SRCS += $(TIMERDIR)/papi_timer.c $(TIMERDIR)/papix6_timer.c
+endif
+ifeq ($(USE_LIKWID),1)
+  TIMER_SRCS += $(TIMERDIR)/likwid_timer.c
+endif
+TIMER_SRCS += $(TIMERDIR)/tsc_asym.c
+TIMER_MPI_OBJS = $(patsubst $(TIMERDIR)/%.c,$(TIMERDIR)/%-mpi.o,$(TIMER_SRCS))
 
 # All object files for partes-mpi
 PARTES_MPI_OBJS = $(CORE_MPI_OBJS) $(KERNEL_MPI_OBJS) $(TIMER_MPI_OBJS) $(GAUGE_MPI_OBJS)
@@ -34,21 +93,21 @@ FIT_OBJS = partes-fit.o pterr.o stat.o detect_std_time.o get_tspec.o
 all: partes-mpi.x partes-fit.x
 
 partes-mpi.x: $(PARTES_MPI_OBJS)
-	$(CC) $(PARTES_MPI_OBJS) -o $@ $(LDFLAGS)
+	$(CC) -g $(PARTES_MPI_OBJS) -o $@ $(LDFLAGS)
 
 partes-fit.x: $(FIT_OBJS)
-	$(CC) $(FIT_OBJS) $(TIMER_MPI_OBJS) -o $@ $(LDFLAGS)
+	$(CC) -g $(FIT_OBJS) $(TIMER_MPI_OBJS) -o $@ $(LDFLAGS)
 
 tools:
 	$(MAKE) -C tools
 
 # Compilation rules for MPI versions (with PTOPT_USE_MPI flag)
 %-mpi.o: %.c
-	$(CC) $(CFLAGS) $(MPIFLAGS) -c $< -o $@
+	$(CC) -g $(CFLAGS) $(MPIFLAGS) $(LDFLAGS) -c $< -o $@
 
 # Regular compilation rule (without MPI flag)
 %.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) -g $(CFLAGS) $(LDFLAGS) -c $< -o $@
 
 clean:
 	rm -f *.o *-mpi.o $(KERNELDIR)/*.o $(TIMERDIR)/*.o $(GAUGEDIR)/*.o  *.x
