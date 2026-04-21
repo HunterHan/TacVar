@@ -22,6 +22,7 @@ typedef struct FilT_Param_T {
     double p_xcut, p_ycut, p_zcut;  // Cut the highest fraction.
     char *in_tm_file;       // Input measurement results.
     char *in_tf_file;       // Input timing fluctuation samples.
+    char *out_folder_path; // Output folder for all generated files (absolute path).
     char *out_trh_file;      // Output real time estimation.
     char *out_sim_file;      // Output real time estimation.
 } filt_param_t;

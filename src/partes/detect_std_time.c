@@ -219,33 +219,50 @@ int
 exp_fit_gpns(int ntest, int64_t tmax, pt_timer_func_t *pttimers, pt_gauge_func_t *ptgauges, double *gpns) {
     int err = PTERR_SUCCESS;
     int64_t ng, n, tpre;
+    int64_t global_tpre = 0;
     int64_t p_tm_min[64], p_tm_raw[64][ntest];
     int64_t tmin;
     double gpns_step_total;
     const double r2_thrs = 0.999; // R square threshold
 
+    int myrank = 0;
+    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+
+
     ng = 1;
     n = 0;
     tpre = 0;
-    while (tpre <= tmax && n < 64) {
+    global_tpre = 0;
+    while (global_tpre <= tmax && n < 64) {
+        printf("[Rank %d][DEBUG] ng=%lld, n=%lld, tpre=%lld\n", myrank, ng, n, tpre);
         for (int i = 0; i < ntest; i++) {
             p_tm_raw[n][i] = _run_sub(ng, pttimers, ptgauges);
         }
+        printf("[Rank %d][DEBUG] p_tm_raw[%lld][0]=%lld\n", myrank, n, p_tm_raw[n][0]);
         tmin = p_tm_raw[n][0];
         for (int i = 0; i < ntest; i++) {
             tmin = p_tm_raw[n][i] < tmin ? p_tm_raw[n][i] : tmin;
         }
+        printf("[Rank %d][DEBUG] tmin=%lld\n", myrank, tmin);
         p_tm_min[n] = tmin;
         ng *= 2;
         tpre = tmin * 2;
+        // Ensure all ranks execute the same number of iterations.
+        // Continue until every rank's tpre exceeds tmax (MIN > tmax).
+#ifdef PTOPT_USE_MPI
+        MPI_Allreduce(&tpre, &global_tpre, 1, MPI_INT64_T, MPI_MIN, MPI_COMM_WORLD);
+#else
+        global_tpre = tpre;
+#endif
         n++;
     }
-
+    
     /* From nmax, nmax-1 to 0, calculate R square to model t[i] = 2t[i-1] */
     double rsquare = 1;
     int istep = 1;
     int ist = n - istep - 1;
     gpns_step_total = 0;
+    int ist_start = ist;
     while (ist >= 0 && rsquare > r2_thrs) {
         double mean_t = 0, sum_res = 0, sum_tot = 0, t_model = p_tm_min[ist];
         for (int i = ist; i < n; i++) {
@@ -258,11 +275,52 @@ exp_fit_gpns(int ntest, int64_t tmax, pt_timer_func_t *pttimers, pt_gauge_func_t
             t_model = t_model * 2;
         }
         rsquare = 1 - sum_res / sum_tot;
+#ifdef PTOPT_ROBUST_GPNS_SLOPE
+        // Robust mode: ignore non-monotonic steps (or near-zero deltas) to avoid negative/unstable slopes.
+        int64_t dt = p_tm_min[ist + 1] - p_tm_min[ist];
+        if (dt > 0) {
+            gpns_step_total += (pow(2, ist + 1) - pow(2, ist)) / (double)dt;
+        }
+#else
         gpns_step_total += (pow(2, ist+1) - pow(2, ist)) / (p_tm_min[ist+1] - p_tm_min[ist]);
+#endif
         istep += 1;
         ist = n - istep - 1;
     }
+#ifdef PTOPT_ROBUST_GPNS_SLOPE
+    // Count valid positive-delta steps over the same (ist..n) window used above.
+    int valid = 0;
+    for (int i = ist_start; i < n - 1; i++) {
+        if (p_tm_min[i + 1] - p_tm_min[i] > 0) valid++;
+    }
+    if (valid <= 0) {
+        // Fallback: find the first non-zero dt and estimate a positive slope from it.
+        // This avoids failing the whole run on noisy/non-monotonic timing sequences.
+        double fallback_gpns = 0.0;
+        for (int i = 0; i < n - 1; i++) {
+            int64_t dt_any = p_tm_min[i + 1] - p_tm_min[i];
+            if (dt_any != 0) {
+                double dng = pow(2, i + 1) - pow(2, i);
+                fallback_gpns = dng / fabs((double)dt_any);
+                break;
+            }
+        }
+        if (fallback_gpns <= 0.0) {
+            err = PTERR_INVALID_ARGUMENT;
+            _ptm_print_error_mpi(err, "exp_fit_gpns:robust_slope", myrank);
+            goto EXIT;
+        }
+        if (myrank == 0) {
+            printf("[WARN] robust gpns slope: no positive dt; using fallback_gpns=%.6f\n", fallback_gpns);
+            fflush(stdout);
+        }
+        *gpns = fallback_gpns;
+        goto EXIT;
+    }
+    *gpns = gpns_step_total / (double)valid;
+#else
     *gpns = gpns_step_total / (istep - 1);
+#endif
     *gpns = (int64_t)(*gpns * 1e3) / 1e3;
 
 EXIT:
