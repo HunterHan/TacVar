@@ -49,6 +49,7 @@ unset CC CXX FC F77 F90 MPICC MPICXX OMPI_CC OMPI_CXX
 
 # ===== MPI =====
 : "${MPI_HOME:=/home/hpchzy/opt/openmpi-5.0.10}"
+export MPI_HOME
 if [[ -d "${MPI_HOME}/bin" ]]; then
   export USE_MPI="${USE_MPI:-1}"
   _pt_prepend_path "${MPI_HOME}/bin"
@@ -61,6 +62,7 @@ fi
 
 # ===== OpenBLAS =====
 : "${OPENBLAS_HOME:=/home/hpchzy/opt/openblas-0.3.32}"
+export OPENBLAS_HOME
 if [[ -d "${OPENBLAS_HOME}/include" && -d "${OPENBLAS_HOME}/lib" ]]; then
   export USE_OPENBLAS="${USE_OPENBLAS:-1}"
   _pt_prepend_path "${OPENBLAS_HOME}/bin"
@@ -73,6 +75,7 @@ fi
 
 # ===== PAPI =====
 : "${PAPI_HOME:=/home/hpchzy/opt/papi-7.2.0}"
+export PAPI_HOME
 if [[ -d "${PAPI_HOME}/include" && ( -d "${PAPI_HOME}/lib" || -d "${PAPI_HOME}/lib64" ) ]]; then
   export USE_PAPI="${USE_PAPI:-1}"
   _pt_prepend_path "${PAPI_HOME}/bin"
@@ -91,6 +94,7 @@ fi
 
 # ===== LIKWID =====
 : "${LIKWID_HOME:=/home/hpchzy/opt/likwid-5.5.1}"
+export LIKWID_HOME
 if [[ -d "${LIKWID_HOME}/include" && ( -d "${LIKWID_HOME}/lib" || -d "${LIKWID_HOME}/lib64" ) ]]; then
   export USE_LIKWID="${USE_LIKWID:-1}"
   _pt_prepend_path "${LIKWID_HOME}/bin"
