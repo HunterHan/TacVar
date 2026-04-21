@@ -4,6 +4,9 @@
 # - If a dependency directory isn't present, export USE_* = 0 so build/scripts can skip it.
 # - Users can override by exporting USE_* (0/1) before sourcing this file.
 
+conda deactivate
+source ~/miniconda3/bin/activate
+
 _pt_prepend_path() {
   local d="$1"
   [[ -d "${d}" ]] || return 0
