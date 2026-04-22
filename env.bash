@@ -7,6 +7,9 @@
 conda deactivate
 source ~/miniconda3/bin/activate
 
+PROJ_ROOT=$(realpath $(pwd))
+DATA_ROOT=$(realpath ~/code/data/)
+
 _pt_prepend_path() {
   local d="$1"
   [[ -d "${d}" ]] || return 0
