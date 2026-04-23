@@ -70,6 +70,7 @@
 
 #define NS_PER_TICK  1
 
+#ifdef USE_TSC
 void
 tsc_start(uint64_t *cycle) {
     unsigned ch, cl;
@@ -99,6 +100,7 @@ tsc_stop(uint64_t *cycle) {
     *cycle = ( ((uint64_t)ch << 32) | cl );
 }
 
+#endif
 
 /**
  * @brief Fill arr[size] with random number.
