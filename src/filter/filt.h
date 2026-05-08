@@ -23,6 +23,7 @@ typedef struct FilT_Param_T {
     char *in_tm_file;       // Input measurement results.
     char *in_tf_file;       // Input timing fluctuation samples.
     char *out_trh_file;      // Output real time estimation.
+    char *out_tmh_file;      // Output measured time estimation.
     char *out_sim_file;      // Output real time estimation.
 } filt_param_t;
 

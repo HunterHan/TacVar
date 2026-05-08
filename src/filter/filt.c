@@ -534,6 +534,13 @@ run_filt(filt_param_t *args, prob_hist_t *tr_hist, i64 *sim_cdf,
                 tm_hist.pbin[i].t, tm_hist.pbin[i+1].t, tm_hist.pbin[i].p);
     }
 
+    // Save tm hist
+    FILE *tm_fp = fopen(args->out_tmh_file, "w");
+    for (i64 i = 0; i < tm_hist.nbin; i ++) {
+        fprintf(tm_fp, "%lld, %lf\n", tm_hist.pbin[i].t, tm_hist.pbin[i].p);
+    }
+    fclose(tm_fp);
+
     printf("[FilT-run_filt] Parsing timing fluctuation file %s\n", args->in_tf_file);
     err = read_csv(args->in_tf_file, args->p_ycut, &tf_len, &tf_arr);
     if (err) {
@@ -579,6 +586,7 @@ main(int argc, char **argv){
     args.in_tm_file = "met.csv";
     args.in_tf_file = "tf.csv";
     args.out_trh_file = "tr_hist.csv";
+    args.out_tmh_file = "tm_hist.csv";
     args.out_sim_file = "sim_cdf.csv";
     args.width = 100;
     args.nsamp = 1000000;
