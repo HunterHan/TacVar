@@ -103,6 +103,61 @@ tsc_stop(uint64_t *cycle) {
 
 #endif
 
+#ifdef USE_CNTVCT
+void cntvct_start(uint64_t *ns){
+    unsigned long long ticks;
+    asm volatile("mrs %0, cntvct_el0" : "=r"(ticks));
+    *ns = ticks;
+}
+
+void cntvct_stop(uint64_t *ns){
+    unsigned long long ticks;
+    asm volatile("mrs %0, cntvct_el0" : "=r"(ticks));
+    *ns = ticks;
+}
+#endif
+
+#ifdef USE_CNTVCT_FENCE
+void cntvct_fence_start(uint64_t *ns){
+    unsigned long long ticks;
+    asm volatile("isb; mrs %0, cntvct_el0" : "=r"(ticks));
+    *ns = ticks;
+}
+
+void cntvct_fence_stop(uint64_t *ns){
+    unsigned long long ticks;
+    asm volatile("isb; mrs %0, cntvct_el0" : "=r"(ticks));
+    *ns = ticks;
+}
+#endif
+
+#ifdef USE_CNTVCTO
+void cntvcto_start(uint64_t *ns){
+    unsigned long long ticks;
+    __asm__ __volatile__ (
+        "isb\n\t"
+        "mrs %0, cntvct_el0\n\t"
+        "isb"
+        : "=r" (ticks)
+        :
+        : "memory"
+    );
+    *ns = ticks;
+}
+
+void cntvcto_stop(uint64_t *ns){
+    unsigned long long ticks;
+    __asm__ __volatile__ (
+        "mrs %0, cntvct_el0\n\t"
+        : "=r" (ticks)
+        :
+        : "memory"
+    );
+    *ns = ticks;
+}
+#endif
+
+
 /**
  * @brief Fill arr[size] with random number.
  */
@@ -127,9 +182,6 @@ main(int argc, char **argv) {
     uint64_t ntest;
     /* Vars for Stencil */
     double **x, **y;
-#ifdef STAGE_TF
-    double **x2, **y2;
-#endif
     double a = 0.21, b = 0.20;
     uint64_t narr;
     struct timespec tv;
@@ -157,16 +209,6 @@ main(int argc, char **argv) {
     for (size_t i = 0; i < narr; i ++) {
         y[i] = (double *)malloc(narr * sizeof(double));
     }
-#ifdef STAGE_TF
-    x2 = (double **)malloc(narr * sizeof(double*));
-    y2 = (double **)malloc(narr * sizeof(double*));
-    for (size_t i = 0; i < narr; i ++) {
-        x2[i] = (double *)malloc(narr * sizeof(double));
-    }
-    for (size_t i = 0; i < narr; i ++) {
-        y2[i] = (double *)malloc(narr * sizeof(double));
-    }
-#endif
 
     ntest = NPASS + NTEST;
 
@@ -189,10 +231,6 @@ main(int argc, char **argv) {
         for (uint64_t i = 0; i < narr; i ++) {
             fill_random(x[i], narr);
             fill_random(y[i], narr);
-#ifdef STAGE_TF
-            fill_random(x2[i], narr);
-            fill_random(y2[i], narr);
-#endif
         }
         if (myrank == 0) {
             printf("Warming up for %d ms.\n", NWARM);
@@ -209,10 +247,6 @@ main(int argc, char **argv) {
             for (uint64_t i = 1; i < narr-1; i ++) {
                 for (uint64_t j = 1; j < narr-1; j ++) {
                     y[i][j] = a * x[i][j] + b * (x[i-1][j] + x[i+1][j] + x[i][j-1] + x[i][j+1]);
-#ifdef STAGE_TF
-                    // y2[i][j] = a * y[i][j] + b * (y[i-1][j] + y[i+1][j] + y[i][j-1] + y[i][j+1]);
-                    y2[i][j] = a * x2[i][j] + b * (x2[i-1][j] + x2[i+1][j] + x2[i][j-1] + x2[i][j+1]);
-#endif
                 }
             }
         }
@@ -272,6 +306,10 @@ main(int argc, char **argv) {
         ev_vals_1[iev] = 0;
     }
 
+#elif USE_CNTVCT || USE_CNTVCT_FENCE || USE_CNTVCTO
+    uint64_t cntvct_freq;
+    asm volatile("mrs %0, cntfrq_el0" : "=r" (cntvct_freq));
+
 #endif
 
     p_ns = (uint64_t *)malloc(ntest * narr * sizeof(uint64_t));
@@ -280,10 +318,6 @@ main(int argc, char **argv) {
     for (uint64_t i = 0; i < narr; i ++) {
         fill_random(x[i], narr);
         fill_random(y[i], narr);
-#ifdef STAGE_TF
-        fill_random(x2[i], narr);
-        fill_random(y2[i], narr);
-#endif
     }
 
     if (myrank == 0) {
@@ -298,12 +332,11 @@ main(int argc, char **argv) {
         for (uint64_t i = 0; i < narr; i ++) {
             for (uint64_t j = 0; j < narr; j ++) {
                 x[i][j] = y[i][j];
-#ifdef STAGE_TF
-                x2[i][j] = y2[i][j];
-#endif
             }
         }
 
+
+#ifndef STAGE_TF
         for (uint64_t j = 1; j < narr-1; j ++) {
 
 #ifdef TIMING
@@ -330,6 +363,15 @@ main(int argc, char **argv) {
 #elif USE_TSC
             tsc_start(&ns0);
 
+#elif USE_CNTVCT
+            cntvct_start(&ns0);
+
+#elif USE_CNTVCT_FENCE
+            cntvct_fence_start(&ns0);
+
+#elif USE_CNTVCTO
+            cntvcto_start(&ns0);
+
 #else
             _read_ns (ns0);
             _mfence;
@@ -340,9 +382,6 @@ main(int argc, char **argv) {
 
             for (uint64_t k = 1; k < narr-1; k ++) {
                 y[j][k] = a * x[j][k] + b * (x[j-1][k] + x[j+1][k] + x[j][k-1] + x[j][k+1]);
-#ifdef STAGE_TF
-                y2[j][k] = a * x2[j][k] + b * (x2[j-1][k] + x2[j+1][k] + x2[j][k-1] + x2[j][k+1]);
-#endif
             }
 
 #ifdef TIMING
@@ -387,6 +426,18 @@ main(int argc, char **argv) {
             p_ns[it*narr+j] = ns1 - ns0;
             p_ns[it*narr+j] = (uint64_t)((double)(ns1 - ns0) / tsc_ns);
 
+#elif USE_CNTVCT
+            cntvct_stop(&ns1);
+            p_ns[it*narr+j] = (ns1 - ns0) * 1e9 / cntvct_freq;
+
+#elif USE_CNTVCT_FENCE
+            cntvct_fence_stop(&ns1);
+            p_ns[it*narr+j] = (ns1 - ns0) * 1e9 / cntvct_freq;
+
+#elif USE_CNTVCTO
+            cntvcto_stop(&ns1);
+            p_ns[it*narr+j] = (ns1 - ns0) * 1e9 / cntvct_freq;
+
 #else
             _read_ns (ns1);
             _mfence;
@@ -395,6 +446,132 @@ main(int argc, char **argv) {
 
 #endif
         }
+
+        
+
+
+#else
+
+
+
+
+
+        for (uint64_t j = 1; j < narr-2; j += 2) {
+
+#ifdef TIMING
+
+// Timing.
+#ifdef USE_PAPI
+            ns0 = PAPI_get_real_nsec();
+
+#elif USE_PAPIX6
+            ns0 = PAPI_get_real_nsec();
+            PAPI_read(eventset, ev_vals_0);
+
+#elif USE_CGT
+            clock_gettime(CLOCK_MONOTONIC, &tv);
+            ns0 = tv.tv_sec * 1e9 + tv.tv_nsec;
+
+#elif USE_WTIME
+            ns0 = (uint64_t)(MPI_Wtime() * 1e9);
+
+#elif USE_LIKWID
+            //ns0 = 0;
+            LIKWID_MARKER_START("vkern"); 
+
+#elif USE_TSC
+            tsc_start(&ns0);
+
+#elif USE_CNTVCT
+            cntvct_start(&ns0);
+
+#elif USE_CNTVCT_FENCE
+            cntvct_fence_start(&ns0);
+
+#elif USE_CNTVCTO
+            cntvcto_start(&ns0);
+
+#else
+            _read_ns (ns0);
+            _mfence;
+
+#endif
+
+#endif
+
+            for (uint64_t k = 1; k < narr-1; k ++) {
+                y[j][k] = a * x[j][k] + b * (x[j-1][k] + x[j+1][k] + x[j][k-1] + x[j][k+1]);
+                y[j + 1][k] = a * x[j + 1][k] + b * (x[j][k] + x[j+2][k] + x[j+1][k-1] + x[j+1][k+1]);
+            }
+
+#ifdef TIMING
+
+#ifdef USE_PAPI
+            ns1 = PAPI_get_real_nsec();
+            p_ns[it*narr+j] = (uint64_t)(ns1 - ns0);
+
+#elif USE_PAPIX6
+            ns1 = PAPI_get_real_nsec();
+            PAPI_read(eventset, ev_vals_1);
+            for (int iev = 0; iev < nev; iev ++) {
+                p_ev[it * narr * nev + j * nev + iev] = (int64_t)(ev_vals_1[iev] - ev_vals_0[iev]);
+            }
+            p_ns[it*narr+j] = (uint64_t)(ns1 - ns0);
+
+#elif USE_CGT
+            clock_gettime(CLOCK_MONOTONIC, &tv);
+            ns1 = tv.tv_sec * 1e9 + tv.tv_nsec;
+            p_ns[it*narr+j] = ns1 - ns0;
+
+#elif USE_WTIME
+            ns1 = (uint64_t)(MPI_Wtime() * 1e9);
+            p_ns[it*narr+j] = ns1 - ns0;
+
+#elif USE_LIKWID
+            LIKWID_MARKER_STOP("vkern"); 
+            LIKWID_MARKER_GET("vkern", &nev, (double*)ev_vals_1, &time, &count);
+            for (int iev = 0; iev < nev; iev ++) {
+                p_ev[it * narr * nev + j * nev + iev] = (int64_t)ev_vals_1[iev] - (int64_t)ev_vals_0[iev];
+                ev_vals_0[iev] = ev_vals_1[iev];
+            }
+            // We do not use "time" argument as the timestamp because the perfmon swith the timer
+            // unexpectedly. It is good to use FIXC2: CPU_CLK_UNHALTED_REF and convert with tsc_ns
+            // ns1 = (uint64_t)((double)p_ev[it * narr * nev + j * nev + 2] / tsc_ns);
+            ns1 = (uint64_t) (time * 1e9);
+            p_ns[it*narr+j] = ns1 - ns0;
+            ns0 = ns1;
+
+#elif USE_TSC
+            tsc_stop(&ns1);
+            p_ns[it*narr+j] = ns1 - ns0;
+            p_ns[it*narr+j] = (uint64_t)((double)(ns1 - ns0) / tsc_ns);
+
+#elif USE_CNTVCT
+            cntvct_stop(&ns1);
+            p_ns[it*narr+j] = (ns1 - ns0) * 1e9 / cntvct_freq;
+
+#elif USE_CNTVCT_FENCE
+            cntvct_fence_stop(&ns1);
+            p_ns[it*narr+j] = (ns1 - ns0) * 1e9 / cntvct_freq;
+
+#elif USE_CNTVCTO
+            cntvcto_stop(&ns1);
+            p_ns[it*narr+j] = (ns1 - ns0) * 1e9 / cntvct_freq;
+
+#else
+            _read_ns (ns1);
+            _mfence;
+            p_ns[it*narr+j] = (uint64_t)((double)(ns1 - ns0) / tsc_ns);
+#endif
+            p_ns[it*narr+j+1] = p_ns[it*narr+j];
+#endif
+        }
+        
+
+
+
+#endif
+
     }
 
     clock_gettime(CLOCK_MONOTONIC, &tv);
@@ -433,6 +610,15 @@ main(int argc, char **argv) {
 #elif USE_TSC
     sprintf(fname, "jacobi2d5p_tsc_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
+#elif USE_CNTVCT
+    sprintf(fname, "jacobi2d5p_cntvct_time_%d_%s.csv", myrank, myhost);
+    FILE *fp = fopen(fname, "w");
+#elif USE_CNTVCT_FENCE
+    sprintf(fname, "jacobi2d5p_cntvct_fence_time_%d_%s.csv", myrank, myhost);
+    FILE *fp = fopen(fname, "w");
+#elif USE_CNTVCTO
+    sprintf(fname, "jacobi2d5p_cntvcto_time_%d_%s.csv", myrank, myhost);
+    FILE *fp = fopen(fname, "w");
 #else
     sprintf(fname, "jacobi2d5p_stiming_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
@@ -463,9 +649,6 @@ main(int argc, char **argv) {
 
     if (myrank == 0) {
         printf("Done. %f\n", y[narr/2][narr/2]);
-#ifdef STAGE_TF
-        printf("Done. %f\n", y2[narr/2][narr/2]);
-#endif
     }
 
     for (size_t i = 0; i < narr; i ++) {
@@ -474,14 +657,6 @@ main(int argc, char **argv) {
     for (size_t i = 0; i < narr; i ++) {
         free(y[i]);
     }
-#ifdef STAGE_TF
-    for (size_t i = 0; i < narr; i ++) {
-        free(x2[i]);
-    }
-    for (size_t i = 0; i < narr; i ++) {
-        free(y2[i]);
-    }
-#endif
 
     free(x);
     free(y);

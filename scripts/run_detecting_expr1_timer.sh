@@ -111,7 +111,7 @@ _pt_filter_timers() {
 # ====== User-configurable parameters ======
 EXPR_NAME="${EXPR_NAME:-partes_expr1_fsize}"
 EXPR_ID="${EXPR_ID:-}"
-NP="${NP:-64}"
+NP="${NP:-128}"
 GAUGE="${GAUGE:-sub_scalar}"
 
 # Interval sweep (normal mean for gen_walklist.py): space-separated list in ns.

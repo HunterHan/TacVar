@@ -1,5 +1,5 @@
-#!/bin/bash -e
-set -euo pipefail
+# !/bin/bash -x
+# set -euo pipefail
 pkill -u $(whoami) -9 "mpirun" || true
 pkill -u $(whoami) -9 "python3" || true
 
@@ -114,7 +114,7 @@ _pt_filter_timers() {
 # ====== User-configurable parameters ======
 EXPR_NAME="${EXPR_NAME:-partes_expr1_fsize}"
 EXPR_ID="${EXPR_ID:-}"
-NP="${NP:-64}"
+NP="${NP:-128}"
 GAUGE="${GAUGE:-sub_scalar}"
 
 # Interval sweep (normal mean for gen_walklist.py): space-separated list in ns.
@@ -129,7 +129,8 @@ RKERN_LIST="${RKERN_LIST:-none}"
 
 # TIMER_LIST: space-separated list of timers, e.g. "clock_gettime mpi_wtime".
 # If not set, fall back to single TIMER or default clock_gettime.
-TIMER="${TIMER:-tsc_asym clock_gettime mpi_wtime papi papix6 likwid}"
+# TIMER="${TIMER:-tsc_asym clock_gettime mpi_wtime papi papix6 likwid}"÷
+TIMER="${TIMER:-clock_gettime mpi_wtime papi papix6 likwid}"
 TIMER_LIST="${TIMER_LIST:-${TIMER}}"
 TIMER_LIST="$(_pt_filter_timers "${TIMER_LIST}")"
 echo "[INFO] USE_PAPI=${USE_PAPI:-0} USE_LIKWID=${USE_LIKWID:-0} => TIMER_LIST='${TIMER_LIST}'"
@@ -147,7 +148,9 @@ NTILES="${NTILES:-100}"
 CUT_P="${CUT_P:-0.995}"
 
 # Front-kernel fsize sweep list (KiB)
-FSIZE_LIST=(32 64 128 256 512 1024 2048 4096)
+# FSIZE_LIST=(32 64 128 256 512 1024 2048)
+FSIZE_LIST=(16 32 64 128 256 512 1024 2048 4096 8192)
+
 # FSIZE_LIST=(2048)
 
 # This expr will use a fixed single base time (1000ns) in walk_list; BASE_NS / SIGMA / NWALKS / SEED are not used.
