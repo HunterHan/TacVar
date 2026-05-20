@@ -102,6 +102,51 @@ tsc_stop(uint64_t *cycle) {
 }
 #endif
 
+#if defined(USE_CNTVCT) || defined(USE_CNTVCTO)
+static uint64_t g_cntfrq = 0;
+
+static inline uint64_t
+cntvct_to_ns(uint64_t ticks)
+{
+    return (uint64_t)(((__uint128_t)ticks * 1000000000ULL) / g_cntfrq);
+}
+
+static inline uint64_t
+read_cntvct(void)
+{
+    uint64_t ticks;
+    __asm__ __volatile__("mrs %0, cntvct_el0" : "=r"(ticks));
+    return ticks;
+}
+
+static inline uint64_t
+read_cntvcto_start(void)
+{
+    uint64_t ticks;
+    __asm__ __volatile__("isb\n\t"
+                         "mrs %0, cntvct_el0\n\t"
+                         "isb"
+                         : "=r"(ticks)
+                         :
+                         : "memory");
+    return ticks;
+}
+
+static inline uint64_t
+read_cntvcto_stop(void)
+{
+    uint64_t ticks;
+    __asm__ __volatile__("mrs %0, cntvct_el0" : "=r"(ticks) :: "memory");
+    return ticks;
+}
+
+static void
+init_cntvct_freq(void)
+{
+    __asm__ __volatile__("mrs %0, cntfrq_el0" : "=r"(g_cntfrq));
+}
+#endif
+
 /**
  * @brief Fill arr[size] with random number.
  */
@@ -184,6 +229,9 @@ main(int argc, char **argv) {
         exit(1);
     }
     MPI_Comm_size(MPI_COMM_WORLD, &nrank);
+#if defined(USE_CNTVCT) || defined(USE_CNTVCTO)
+    init_cntvct_freq();
+#endif
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
     
@@ -338,6 +386,12 @@ main(int argc, char **argv) {
 #elif USE_WTIME
             ns0 = (uint64_t)(MPI_Wtime() * 1e9);
 
+#elif USE_CNTVCT
+            ns0 = cntvct_to_ns(read_cntvct());
+
+#elif USE_CNTVCTO
+            ns0 = cntvct_to_ns(read_cntvcto_start());
+
 #elif USE_LIKWID
             //ns0 = 0;
             LIKWID_MARKER_START("vkern"); 
@@ -377,6 +431,14 @@ main(int argc, char **argv) {
 
 #elif USE_WTIME
             ns1 = (uint64_t)(MPI_Wtime() * 1e9);
+            p_ns[it*narr+j] = ns1 - ns0;
+
+#elif USE_CNTVCT
+            ns1 = cntvct_to_ns(read_cntvct());
+            p_ns[it*narr+j] = ns1 - ns0;
+
+#elif USE_CNTVCTO
+            ns1 = cntvct_to_ns(read_cntvcto_stop());
             p_ns[it*narr+j] = ns1 - ns0;
 
 #elif USE_LIKWID
@@ -440,6 +502,12 @@ main(int argc, char **argv) {
     FILE *fp = fopen(fname, "w");
 #elif USE_WTIME
     sprintf(fname, "tl_f90_cg_calc_w_wtime_time_%d_%s.csv", myrank, myhost);
+    FILE *fp = fopen(fname, "w");
+#elif USE_CNTVCT
+    sprintf(fname, "tl_f90_cg_calc_w_cntvct_time_%d_%s.csv", myrank, myhost);
+    FILE *fp = fopen(fname, "w");
+#elif USE_CNTVCTO
+    sprintf(fname, "tl_f90_cg_calc_w_cntvcto_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif USE_PAPIX6
     sprintf(fname, "tl_f90_cg_calc_w_papix6_time_%d_%s.csv", myrank, myhost);
