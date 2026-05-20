@@ -44,12 +44,15 @@ print_usage(char *argv[])
         printf("  --rkern-b <kernel>  Rear kernel for tb (none, triad, scale, copy, add, pow, dgemm, mpi_bcast)\n");
         printf("  --rsize-a <size>    The memory size of ta's rkern in KiB\n");
         printf("  --rsize-b <size>    The memory size of tb's rkern in KiB\n");
-        printf("  --timer <timer>     Timer method (clock_gettime, mpi_wtime, tsc_asym");
+        printf("  --timer <timer>     Timer method (clock_gettime, mpi_wtime, tsc, tsc_asym");
 #ifdef USE_PAPI
         printf(", papi, papix6");
 #endif
 #ifdef USE_LIKWID
         printf(", likwid");
+#endif
+#ifdef __aarch64__
+        printf(", cntvct, cntvct_fence, cntvcto");
 #endif
         printf(")\n");
         printf("  --gauge <gauge>     Gauge method (sub_scalar, sub_scalar_2p, fma_scalar, fma_avx2, fma_avx512)\n");
@@ -460,6 +463,18 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs,
                     pttimers->tock = tock_mpi_wtime;
                     pttimers->get_stamp = get_stamp_mpi_wtime;
                     strcpy(ptopts->timer_name, "mpi_wtime");
+                }  else if (strcmp(argv[i + 1], "tsc") == 0) {
+#ifdef __x86_64__
+                    ptopts->timer = TIMER_TSC;
+                    pttimers->init_timer = init_timer_tsc;
+                    pttimers->tick = tick_tsc;
+                    pttimers->tock = tock_tsc;
+                    pttimers->get_stamp = get_stamp_tsc;
+                    strcpy(ptopts->timer_name, "tsc");
+#else
+                    fprintf(stderr, "Timer tsc is only available on x86_64.\n");
+                    return PTERR_INVALID_ARGUMENT;
+#endif
                 }  else if (strcmp(argv[i + 1], "tsc_asym") == 0) {
 #ifdef __x86_64__
                     ptopts->timer = TIMER_TSC_ASYM;
@@ -468,6 +483,42 @@ parse_ptargs(int argc, char *argv[], pt_opts_t *ptopts, pt_kern_func_t *ptfuncs,
                     pttimers->tock = tock_tsc_asym;
                     pttimers->get_stamp = get_stamp_tsc_asym;
                     strcpy(ptopts->timer_name, "tsc_asym");
+#endif
+                } else if (strcmp(argv[i + 1], "cntvct") == 0) {
+#ifdef __aarch64__
+                    ptopts->timer = TIMER_CNTVCT;
+                    pttimers->init_timer = init_timer_cntvct;
+                    pttimers->tick = tick_cntvct;
+                    pttimers->tock = tock_cntvct;
+                    pttimers->get_stamp = get_stamp_cntvct;
+                    strcpy(ptopts->timer_name, "cntvct");
+#else
+                    fprintf(stderr, "Timer cntvct is only available on aarch64.\n");
+                    return PTERR_INVALID_ARGUMENT;
+#endif
+                } else if (strcmp(argv[i + 1], "cntvct_fence") == 0) {
+#ifdef __aarch64__
+                    ptopts->timer = TIMER_CNTVCT_FENCE;
+                    pttimers->init_timer = init_timer_cntvct_fence;
+                    pttimers->tick = tick_cntvct_fence;
+                    pttimers->tock = tock_cntvct_fence;
+                    pttimers->get_stamp = get_stamp_cntvct_fence;
+                    strcpy(ptopts->timer_name, "cntvct_fence");
+#else
+                    fprintf(stderr, "Timer cntvct_fence is only available on aarch64.\n");
+                    return PTERR_INVALID_ARGUMENT;
+#endif
+                } else if (strcmp(argv[i + 1], "cntvcto") == 0) {
+#ifdef __aarch64__
+                    ptopts->timer = TIMER_CNTVCTO;
+                    pttimers->init_timer = init_timer_cntvcto;
+                    pttimers->tick = tick_cntvcto;
+                    pttimers->tock = tock_cntvcto;
+                    pttimers->get_stamp = get_stamp_cntvcto;
+                    strcpy(ptopts->timer_name, "cntvcto");
+#else
+                    fprintf(stderr, "Timer cntvcto is only available on aarch64.\n");
+                    return PTERR_INVALID_ARGUMENT;
 #endif
                 } else if (strcmp(argv[i + 1], "papi") == 0) {
 #ifdef USE_PAPI
