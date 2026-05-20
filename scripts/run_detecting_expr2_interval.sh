@@ -145,6 +145,8 @@ RSIZE_LIST=(${RSIZE_LIST[@]:-0})
 NTESTS="${NTESTS:-100}"
 NTILES="${NTILES:-100}"
 CUT_P="${CUT_P:-0.995}"
+NWALKS="${NWALKS:-100}"
+SIGMA_REL="${SIGMA_REL:-0.015}"
 
 # Front-kernel fsize sweep list (KiB)
 FSIZE_LIST=(4096)
@@ -168,6 +170,7 @@ mkdir -p "${ARCHIVE_DIR}"
 cp -f "${BASH_SOURCE[0]}" "${ARCHIVE_DIR}/run_detecting_expr1_fsize2.sh"
 cp -f "${SCRIPT_DIR}/../env.bash" "${ARCHIVE_DIR}/env.bash" || true
 cp -f "${SCRIPT_DIR}/../utils/gen_walklist.py" "${ARCHIVE_DIR}/gen_walklist.py" || true
+cp -f "${SCRIPT_DIR}/assess_walklist_common.sh" "${ARCHIVE_DIR}/assess_walklist_common.sh" || true
 
 # From here on, mirror all output to a log file for this batch.
 exec > >(tee -a "${RUN_LOG}") 2>&1
@@ -202,29 +205,20 @@ popd >/dev/null
 LSCPU_OUT="$(lscpu 2>/dev/null || true)"
 LSCPU_ARCH_LINE="$(printf '%s\n' \"${LSCPU_OUT}\" | grep -m1 -E '^(Architecture:|架构)' || true)"
 LSCPU_MODEL_LINE="$(printf '%s\n' \"${LSCPU_OUT}\" | grep -m1 -E '^(Model name:|型号)' || true)"
+source "${SCRIPT_DIR}/assess_walklist_common.sh"
 
-# ====== Single shared walk list (OUT_ROOT); all timers/combos read this file ======
-SHARED_WALK_LIST="${OUT_ROOT}/walk_list_normal.csv"
-SHARED_WALK_META="${OUT_ROOT}/walk_list_meta.txt"
-if [[ -z "${WALK_MU_NS}" ]]; then
-  WALK_MU_NS="$(echo ${MU_LIST} | awk '{print $1}')"
-fi
-_n_mu_words="$(echo ${MU_LIST} | wc -w | tr -d ' ')"
-if [[ "${_n_mu_words}" -gt 1 ]]; then
-  echo "[WARN] MU_LIST has multiple values; every combo still uses the same ${SHARED_WALK_LIST} generated with WALK_MU_NS=${WALK_MU_NS}. Override with env WALK_MU_NS=..."
-fi
-python3 "${SCRIPT_DIR}/../utils/gen_walklist.py" \
-  --out "${SHARED_WALK_LIST}" \
-  --meta-out "${SHARED_WALK_META}" \
-  --mu-ns "${WALK_MU_NS}"
-walk_count="$(python3 - <<'PY' "${SHARED_WALK_LIST}"
-import csv, sys
-with open(sys.argv[1], newline="") as f:
-    r = csv.DictReader(f)
-    print(sum(1 for _ in r))
-PY
-)"
-echo "[INFO] Shared walk list: ${SHARED_WALK_LIST} (${walk_count} walks)"
+# ====== Per-interval walk lists (pre-generated on af309) ======
+WALKLIST_ROOT="${OUT_ROOT}/walklists"
+mkdir -p "${WALKLIST_ROOT}"
+
+ensure_walk_list() {
+  local interval_ns="$1"
+  local walk_mu_ns="${WALK_MU_NS:-${interval_ns}}"
+  local walk_dir="${WALKLIST_ROOT}/interval${interval_ns}"
+  assess_use_interval_walklist "${interval_ns}" "${walk_dir}"
+  echo "[INFO] Walk list for interval=${interval_ns}: ${WALK_LIST} (walk_mu_ns=${walk_mu_ns}, ${walk_count} walks)"
+  echo "[INFO] Walk list source for interval=${interval_ns}: ${ASSESS_WALKLIST_SOURCE}"
+}
 
 # ====== Helpers ======
 die() { echo "ERROR: $*" >&2; exit 1; }
@@ -300,6 +294,7 @@ run_one_walk() {
 
 for timer in ${TIMER_LIST}; do
   for mu_ns in ${MU_LIST}; do
+    ensure_walk_list "${mu_ns}"
     for fkern in ${FKERN_LIST}; do
       for rkern in ${RKERN_LIST}; do
         for fsize_kib in "${FSIZE_LIST[@]}"; do
@@ -308,8 +303,6 @@ for timer in ${TIMER_LIST}; do
 
             combo_root="${OUT_ROOT}/${timer}/${combo}"
             mkdir -p "${combo_root}"
-            WALK_LIST="${SHARED_WALK_LIST}"
-            META_TXT="${SHARED_WALK_META}"
             META_MD="${combo_root}/meta.md"
 
             {
@@ -323,7 +316,7 @@ for timer in ${TIMER_LIST}; do
             echo "| output_root | \`${OUT_ROOT}\` |"
             echo "| timer | \`${timer}\` |"
             echo "| interval_ns | \`${mu_ns}\` |"
-            echo "| walk_mu_ns | \`${WALK_MU_NS}\` |"
+            echo "| walk_mu_ns | \`${WALK_MU_NS:-${mu_ns}}\` |"
             echo "| mu_list | \`${MU_LIST}\` |"
             echo "| fkern | \`${fkern}\` |"
             echo "| fkern_list | \`${FKERN_LIST}\` |"
@@ -332,8 +325,8 @@ for timer in ${TIMER_LIST}; do
             echo "| fsize_kib | \`${fsize_kib}\` |"
             echo "| rsize_kib | \`${rsize_kib}\` |"
             echo "| rsize_list | \`${RSIZE_LIST[*]}\` |"
-            echo "| walk_list | \`${SHARED_WALK_LIST}\` |"
-            echo "| walk_list_meta | \`${SHARED_WALK_META}\` |"
+            echo "| walk_list | \`${WALK_LIST}\` |"
+            echo "| walk_list_meta | \`${META_TXT}\` |"
             echo "| meta_txt | \`${META_TXT}\` |"
             echo "| binary | \`${BINARY}\` |"
             echo "| np | \`${NP}\` |"

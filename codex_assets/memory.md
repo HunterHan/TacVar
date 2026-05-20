@@ -86,7 +86,7 @@ Note: the correct third hostname is `cgnr6760pn2`, not `cngr6760pn2`.
 - `assessing/detecting` maps to `af309:~/code/TacVar/scripts/run_detecting_*.sh`.
   - Entry wrapper: `scripts/run_detecting_pipeline_entry.sh`.
   - Experiment scripts: `run_detecting_expr1_timer.sh`, `run_detecting_expr1_fsize.sh`, `run_detecting_expr2_interval.sh`, `run_detecting_expr3_frkern.sh`.
-  - These scripts source `env.bash`, build `src/partes/partes-mpi.x`, generate walk lists with `utils/gen_walklist.py`, and run `mpirun ... partes-mpi.x --ta ... --tb ...`.
+  - These scripts source `env.bash`, build `src/partes/partes-mpi.x`, read af309-prepared walking lists, and run `mpirun ... partes-mpi.x --ta ... --tb ...`.
   - Core source path: `af309:~/code/TacVar/src/partes/partes-mpi.c`.
 
 ## Paper Reference Mapping
@@ -145,7 +145,7 @@ Note: the correct third hostname is `cgnr6760pn2`, not `cngr6760pn2`.
 - Assessing Wasserstein means the distance between the actual measured distribution and the theoretical walking-list distribution, not raw elapsed time and not only mean absolute distance to one scalar `ta`.
 - `expr1.fsize`: script values `16 32 ... 8192` already mean KiB; plot them directly as KiB.
 - `expr1.timer`: do not use timer as an x-axis line plot. For each timer, plot two panels: left histogram, right walking-list distribution vs measured distribution, following the Computer Science paper Fig. 2 intent.
-- `expr2.interval`: plot interval/`ta` on the x-axis in milliseconds.
+- `expr2.interval`: plot interval/`ta` on the x-axis in microseconds.
 - `expr3.frkern`: do not draw a chart; output tables with rows=`fkern`, columns=`rkern`, and cells=Wasserstein.
 - For cross-node comparison figures, compare current nodes `c920bn3`, `camd9554n2`, `cgnr6760pn2` by subplots/panels, not by overlaying host curves in one axes.
 - Quick-look quantile deltas are acceptable for smoke checks only; final tex-facing assessing plots should use the intended Wasserstein/assessment metrics.
@@ -157,4 +157,9 @@ Note: the correct third hostname is `cgnr6760pn2`, not `cngr6760pn2`.
 - Add assess scripts mirroring current detecting scripts: `run_assess_expr1_timer.sh`, `run_assess_expr1_fsize.sh`, `run_assess_expr2_interval.sh`, `run_assess_expr3_frkern.sh`.
 - Timer defaults: x86 nodes use `tsc_asym`; ARM `c920bn3` should use `cntvct`, `cntvct_fence`, `cntvcto`; common timers remain `clock_gettime`, `mpi_wtime`, `papi`, `papix6`, `likwid` when available.
 - Assessing walk-list generation should use relative noise `N(0, sigma=0.015)` and then add `tbase`/interval to obtain each `ta`.
+- Shared walking-list rule: generate detecting/assess walk lists once on `af309` with `scripts/prepare_assess_walklists_af309.sh`, then upload `codex_assets/walklists/` with TacVar to `c920bn3`, `camd9554n2`, and `cgnr6760pn2`.
+  - Compute nodes must read the pre-generated CSVs via `scripts/assess_walklist_common.sh`; they should not generate their own random walking lists during normal runs.
+  - Missing pre-generated CSVs are fatal unless `ASSESS_ALLOW_LOCAL_WALKLIST=1` is explicitly set for debugging.
+  - Current shared-list path pattern: `codex_assets/walklists/<expr_name>/mu<mu_ns>_n<NWALKS>_sigma0p015/walk_list_normal.csv`.
+  - For one batch, all three compute nodes must have identical checksums for the same walk-list path before comparing `R_L`, `R_H`, or Wasserstein results.
 - Defer gpns/abort stabilization until a data run actually fails.

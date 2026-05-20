@@ -184,6 +184,7 @@ mkdir -p "${ARCHIVE_DIR}"
 cp -f "${BASH_SOURCE[0]}" "${ARCHIVE_DIR}/$(basename "${BASH_SOURCE[0]}")"
 cp -f "${SCRIPT_DIR}/../env.bash" "${ARCHIVE_DIR}/env.bash" || true
 cp -f "${SCRIPT_DIR}/../utils/gen_walklist.py" "${ARCHIVE_DIR}/gen_walklist.py" || true
+cp -f "${SCRIPT_DIR}/assess_walklist_common.sh" "${ARCHIVE_DIR}/assess_walklist_common.sh" || true
 
 # From here on, mirror all output to a log file for this batch.
 exec > >(tee -a "${RUN_LOG}") 2>&1
@@ -218,8 +219,9 @@ popd >/dev/null
 LSCPU_OUT="$(lscpu 2>/dev/null || true)"
 LSCPU_ARCH_LINE="$(printf '%s\n' \"${LSCPU_OUT}\" | grep -m1 -E '^(Architecture:|架构)' || true)"
 LSCPU_MODEL_LINE="$(printf '%s\n' \"${LSCPU_OUT}\" | grep -m1 -E '^(Model name:|型号)' || true)"
+source "${SCRIPT_DIR}/assess_walklist_common.sh"
 
-# ====== Per-interval walk lists ======
+# ====== Per-interval walk lists (pre-generated on af309) ======
 WALKLIST_ROOT="${OUT_ROOT}/walklists"
 mkdir -p "${WALKLIST_ROOT}"
 
@@ -227,28 +229,11 @@ ensure_walk_list() {
   local interval_ns="$1"
   local walk_mu_ns="${WALK_MU_NS:-${interval_ns}}"
   local walk_dir="${WALKLIST_ROOT}/interval${interval_ns}"
-  mkdir -p "${walk_dir}"
-
-  WALK_LIST="${walk_dir}/walk_list_normal.csv"
-  META_TXT="${walk_dir}/walk_list_meta.txt"
-  if [[ ! -s "${WALK_LIST}" ]]; then
-    python3 "${SCRIPT_DIR}/../utils/gen_walklist.py" \
-      --out "${WALK_LIST}" \
-      --meta-out "${META_TXT}" \
-      --dist normal \
-      --mu-ns "${walk_mu_ns}" \
-      --sigma-rel "${SIGMA_REL}" \
-      --nwalks "${NWALKS}"
-  fi
-  walk_count="$(python3 - <<'PY' "${WALK_LIST}"
-import csv, sys
-with open(sys.argv[1], newline="") as f:
-    r = csv.DictReader(f)
-    print(sum(1 for _ in r))
-PY
-)"
+  assess_use_interval_walklist "${interval_ns}" "${walk_dir}"
   echo "[INFO] Walk list for interval=${interval_ns}: ${WALK_LIST} (walk_mu_ns=${walk_mu_ns}, ${walk_count} walks)"
+  echo "[INFO] Walk list source for interval=${interval_ns}: ${ASSESS_WALKLIST_SOURCE}"
 }
+
 
 print_assess_overview() {
   echo ""

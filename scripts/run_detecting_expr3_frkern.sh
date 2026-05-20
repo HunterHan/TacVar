@@ -145,6 +145,8 @@ RSIZE_LIST=(${RSIZE_LIST[@]:-0})
 NTESTS="${NTESTS:-100}"
 NTILES="${NTILES:-100}"
 CUT_P="${CUT_P:-0.995}"
+NWALKS="${NWALKS:-100}"
+SIGMA_REL="${SIGMA_REL:-0.015}"
 
 # Front-kernel fsize sweep list (KiB)
 FSIZE_LIST=(4096)
@@ -168,6 +170,7 @@ mkdir -p "${ARCHIVE_DIR}"
 cp -f "${BASH_SOURCE[0]}" "${ARCHIVE_DIR}/run_detecting_expr1_fsize2.sh"
 cp -f "${SCRIPT_DIR}/../env.bash" "${ARCHIVE_DIR}/env.bash" || true
 cp -f "${SCRIPT_DIR}/../utils/gen_walklist.py" "${ARCHIVE_DIR}/gen_walklist.py" || true
+cp -f "${SCRIPT_DIR}/assess_walklist_common.sh" "${ARCHIVE_DIR}/assess_walklist_common.sh" || true
 
 # From here on, mirror all output to a log file for this batch.
 exec > >(tee -a "${RUN_LOG}") 2>&1
@@ -202,8 +205,9 @@ popd >/dev/null
 LSCPU_OUT="$(lscpu 2>/dev/null || true)"
 LSCPU_ARCH_LINE="$(printf '%s\n' \"${LSCPU_OUT}\" | grep -m1 -E '^(Architecture:|架构)' || true)"
 LSCPU_MODEL_LINE="$(printf '%s\n' \"${LSCPU_OUT}\" | grep -m1 -E '^(Model name:|型号)' || true)"
+source "${SCRIPT_DIR}/assess_walklist_common.sh"
 
-# ====== Single shared walk list (OUT_ROOT); all timers/combos read this file ======
+# ====== Single shared walk list (pre-generated on af309); all timers/combos read this file ======
 SHARED_WALK_LIST="${OUT_ROOT}/walk_list_normal.csv"
 SHARED_WALK_META="${OUT_ROOT}/walk_list_meta.txt"
 if [[ -z "${WALK_MU_NS}" ]]; then
@@ -213,18 +217,9 @@ _n_mu_words="$(echo ${MU_LIST} | wc -w | tr -d ' ')"
 if [[ "${_n_mu_words}" -gt 1 ]]; then
   echo "[WARN] MU_LIST has multiple values; every combo still uses the same ${SHARED_WALK_LIST} generated with WALK_MU_NS=${WALK_MU_NS}. Override with env WALK_MU_NS=..."
 fi
-python3 "${SCRIPT_DIR}/../utils/gen_walklist.py" \
-  --out "${SHARED_WALK_LIST}" \
-  --meta-out "${SHARED_WALK_META}" \
-  --mu-ns "${WALK_MU_NS}"
-walk_count="$(python3 - <<'PY' "${SHARED_WALK_LIST}"
-import csv, sys
-with open(sys.argv[1], newline="") as f:
-    r = csv.DictReader(f)
-    print(sum(1 for _ in r))
-PY
-)"
+assess_use_shared_walklist "${WALK_MU_NS}" "${OUT_ROOT}"
 echo "[INFO] Shared walk list: ${SHARED_WALK_LIST} (${walk_count} walks)"
+echo "[INFO] Shared walk list source: ${ASSESS_WALKLIST_SOURCE}"
 
 # ====== Helpers ======
 die() { echo "ERROR: $*" >&2; exit 1; }
