@@ -168,4 +168,20 @@ Note: the correct third hostname is `cgnr6760pn2`, not `cngr6760pn2`.
   - `scripts/run_assess_expr1_fsize.sh` uses best-effort `cpupower frequency-set -g performance`, `mpirun --map-by core --bind-to core`, and a generated physical-core `taskset` list instead of assuming logical CPU ids `0..NP-1`.
   - Fig6 rerun must cover both `NP=64` and `NP=128`; keep the two datasets separate by `EXPR_NAME` or metadata, and plot them as separate fig6 variants unless the tex explicitly asks to combine them.
   - Use compute-node `~/miniconda3/bin/python` for helper Python, and do not build/run on `af309`.
+  - Final rerun data path: `af309:~/code/data/20260520/<host>/outputAssessing/assess.expr1.fsize.np64|np128/`.
+  - Shared walk-list checksums used for this batch:
+    - `np64`: `e449d78611ca1b7de5bfb476948e6093c660f8e48e05638eb37fd6272d0e52f2`.
+    - `np128`: `02d16b3bf9c4a6a1ea41037195034d1342c847026c9c0ddb5eeed0b9fcae4df0`.
+  - Final plotting script/artifacts:
+    - `scripts_plot/plot_fig6_np64_np128_final.py`.
+    - `scripts_plot/outputAssessing/fig6_np64_np128_final/assess.expr1.fsize.np64_rl_rh_20260520.png`.
+    - `scripts_plot/outputAssessing/fig6_np64_np128_final/assess.expr1.fsize.np128_rl_rh_20260520.png`.
+    - `scripts_plot/outputAssessing/fig6_np64_np128_final/fig6_final_summary_20260520.csv`.
+    - `scripts_plot/outputAssessing/fig6_np64_np128_final/fig6_final_status_20260520.md`.
+  - Final selection rule: choose the newest complete row per `(host, expr, timer, fsize)` with `n_measured=n_theory=300`, then plot a timer line only if all 10 fsize values are present.
+  - Final plotted timers:
+    - `c920bn3`: `clock_gettime`, `mpi_wtime`, `cntvct`, `cntvcto` for both `np64` and `np128`.
+    - `camd9554n2`: `tsc`, `tsc_asym`, `clock_gettime`, `mpi_wtime` for `np64`; `tsc`, `clock_gettime`, `mpi_wtime` for `np128`.
+    - `cgnr6760pn2`: `tsc`, `tsc_asym`, `clock_gettime`, `mpi_wtime` for both `np64` and `np128`.
+  - `camd9554n2 np128 tsc_asym` hung at the larger fsize part of the original batch and was excluded from the final plot because it lacked complete points for `1024 2048 4096 8192` KiB. The run was not broadly patched; stable timers were resumed in a separate batch.
 - Defer gpns/abort stabilization until a data run actually fails.
