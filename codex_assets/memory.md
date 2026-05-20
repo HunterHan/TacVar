@@ -162,4 +162,10 @@ Note: the correct third hostname is `cgnr6760pn2`, not `cngr6760pn2`.
   - Missing pre-generated CSVs are fatal unless `ASSESS_ALLOW_LOCAL_WALKLIST=1` is explicitly set for debugging.
   - Current shared-list path pattern: `codex_assets/walklists/<expr_name>/mu<mu_ns>_n<NWALKS>_sigma0p015/walk_list_normal.csv`.
   - For one batch, all three compute nodes must have identical checksums for the same walk-list path before comparing `R_L`, `R_H`, or Wasserstein results.
+- Fig6 / `assess.expr1.fsize` rerun condition check on 2026-05-20:
+  - Prior-paper constraints to preserve: fixed/performance CPU frequency when possible, one MPI rank per core, avoid SMT interference, current-node fsize/cache interpretation, consistent walk list, and `R_L/R_H` quantile metric.
+  - Current nodes report `Thread(s) per core: 1`, so SMT/hyperthreading is already disabled at platform level for `c920bn3`, `camd9554n2`, and `cgnr6760pn2`.
+  - `scripts/run_assess_expr1_fsize.sh` uses best-effort `cpupower frequency-set -g performance`, `mpirun --map-by core --bind-to core`, and a generated physical-core `taskset` list instead of assuming logical CPU ids `0..NP-1`.
+  - Fig6 rerun must cover both `NP=64` and `NP=128`; keep the two datasets separate by `EXPR_NAME` or metadata, and plot them as separate fig6 variants unless the tex explicitly asks to combine them.
+  - Use compute-node `~/miniconda3/bin/python` for helper Python, and do not build/run on `af309`.
 - Defer gpns/abort stabilization until a data run actually fails.

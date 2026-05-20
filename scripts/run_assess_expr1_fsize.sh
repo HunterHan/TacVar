@@ -220,7 +220,42 @@ popd >/dev/null
 LSCPU_OUT="$(lscpu 2>/dev/null || true)"
 LSCPU_ARCH_LINE="$(printf '%s\n' \"${LSCPU_OUT}\" | grep -m1 -E '^(Architecture:|架构)' || true)"
 LSCPU_MODEL_LINE="$(printf '%s\n' \"${LSCPU_OUT}\" | grep -m1 -E '^(Model name:|型号)' || true)"
+LSCPU_THREAD_LINE="$(printf '%s\n' \"${LSCPU_OUT}\" | grep -m1 -E '^(Thread\\(s\\) per core:|每个核的线程数)' || true)"
 source "${SCRIPT_DIR}/assess_walklist_common.sh"
+
+build_physical_core_list() {
+  local need="$1"
+  local list
+  list="$(
+    lscpu -p=CPU,CORE,SOCKET 2>/dev/null \
+      | awk -F, -v need="${need}" '
+          /^#/ { next }
+          {
+            key = $3 ":" $2
+            if (!(key in seen)) {
+              seen[key] = 1
+              out[++n] = $1
+              if (n >= need) exit
+            }
+          }
+          END {
+            for (i = 1; i <= n; i++) {
+              printf "%s%s", (i == 1 ? "" : ","), out[i]
+            }
+          }'
+  )"
+  if [[ -z "${list}" ]]; then
+    list="$(seq -s, 0 $((need - 1)))"
+  fi
+  printf '%s' "${list}"
+}
+
+CORE_LIST="$(build_physical_core_list "${NP}")"
+CORE_LIST_COUNT="$(awk -F, '{print NF}' <<< "${CORE_LIST}")"
+if [[ "${CORE_LIST_COUNT}" -lt "${NP}" ]]; then
+  echo "ERROR: only ${CORE_LIST_COUNT} physical/logical cores available for NP=${NP}; core_list=${CORE_LIST}" >&2
+  exit 1
+fi
 
 # ====== Single shared walk list (pre-generated on af309); all timers/combos read this file ======
 SHARED_WALK_LIST="${OUT_ROOT}/walk_list_normal.csv"
@@ -248,6 +283,10 @@ print_assess_overview() {
   echo "  rkern_list: ${RKERN_LIST}"
   echo "  fsize_list(KiB): ${FSIZE_LIST[*]}"
   echo "  np=${NP} ntests=${NTESTS} ntiles=${NTILES} cut_p=${CUT_P}"
+  echo "  binding: mpirun --map-by core --bind-to core + taskset physical-core-list"
+  echo "  core_list(${CORE_LIST_COUNT}): ${CORE_LIST}"
+  echo "  lscpu_threads: ${LSCPU_THREAD_LINE:-<unknown>}"
+  echo "  cpu_lock: gov=${CPU_GOV_LOCK} min=${CPU_FREQ_MIN:-<unchanged>} max=${CPU_FREQ_MAX:-<unchanged>}"
   echo "  nwalks: ${NWALKS}"
   echo "  walk_distribution: N(0, sigma_rel=${SIGMA_REL}) + tbase"
   echo "  walk_count: ${walk_count}"
@@ -290,9 +329,6 @@ run_one_walk() {
   run_dir="$(printf "%s/w%04d_ta%d" "${walks_dir}" "${walk_idx}" "${ta}")"
   mkdir -p "${run_dir}"
 
-  local core_list
-  core_list="$(seq -s, 0 $((NP - 1)))"
-
   echo ""
   echo ">>> timer=${timer} interval=${interval_ns} fkern=${fkern} rkern=${rkern} fsize=${fsize_kib} rsize=${rsize_kib} walk ${walk_idx}: ta=${ta} tb=${tb} -> ${run_dir}"
 
@@ -300,7 +336,7 @@ run_one_walk() {
     cd "${run_dir}"
     set -x
     mpirun --map-by core --bind-to core -np "${NP}" \
-      taskset -c "${core_list}" \
+      taskset -c "${CORE_LIST}" \
       "${BINARY}" \
         --ta "${ta}" \
         --tb "${ta}" \
@@ -362,6 +398,13 @@ for timer in ${TIMER_LIST}; do
             echo "| meta_txt | \`${META_TXT}\` |"
             echo "| binary | \`${BINARY}\` |"
             echo "| np | \`${NP}\` |"
+            echo "| mpi_binding | \`--map-by core --bind-to core\` |"
+            echo "| taskset_core_list | \`${CORE_LIST}\` |"
+            echo "| lscpu_thread_line | \`${LSCPU_THREAD_LINE}\` |"
+            echo "| cpu_lock | \`${CPU_LOCK}\` |"
+            echo "| cpu_gov_lock | \`${CPU_GOV_LOCK}\` |"
+            echo "| cpu_freq_min | \`${CPU_FREQ_MIN:-}\` |"
+            echo "| cpu_freq_max | \`${CPU_FREQ_MAX:-}\` |"
             echo "| gauge | \`${GAUGE}\` |"
             echo "| ntests | \`${NTESTS}\` |"
             echo "| ntiles | \`${NTILES}\` |"
