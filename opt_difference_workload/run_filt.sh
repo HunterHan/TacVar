@@ -66,7 +66,7 @@ CFLAGS="-I${PAPI_HOME}/include/ -I${LIKWID_HOME}/include/ -I${OPENBLAS_HOME}.inc
 LDFLAGS="-L${PAPI_HOME}/lib/ -L${LIKWID_HOME}/lib/ -L${OPENBLAS_HOME}/lib/"
 
 rm -rf *.x
-if [ ${host} == "x86_64" ]; then
+if [ ${arch} == "x86_64" ]; then
     LDFLAGS="${LDFLAGS} -lgsl -lopenblas"
     mpicc -O2 -Wall -o ${kernel}_tsc_tf.x ./${kernel}.c  -DSTAGE_TF -DTIMING -DUSE_TSC -DNTEST=$nt -DNPASS=1 ${CFLAGS} ${LDFLAGS} 
     mpicc -O2 -Wall -o ${kernel}_likwid_tf.x ./${kernel}.c  -DSTAGE_TF -DTIMING -DUSE_LIKWID -DLIKWID_PERFMON -DNTEST=$nt -DNPASS=1 ${CFLAGS} ${LDFLAGS} -llikwid

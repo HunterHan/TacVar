@@ -1,0 +1,18 @@
+\begin{table*}[htbp]
+\centering
+\caption{Intel Xeon 6760P clock\_gettime: $R_L$ and $R_H$ with different flush kernels (\%)}
+\label{tab:frkern-cgnr6760pn2-clock_gettime}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccccccccccc}
+\toprule
+\multirow{3}{*}{Rear Flush} & \multicolumn{12}{c}{Front Flush} \\ \cmidrule(lr){2-13}
+& \multicolumn{2}{c}{COPY} & \multicolumn{2}{c}{ADD} & \multicolumn{2}{c}{SCALE} & \multicolumn{2}{c}{TRIAD} & \multicolumn{2}{c}{POW} & \multicolumn{2}{c}{DGEMM} \\ \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11} \cmidrule(lr){12-13}
+& $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ \\ \midrule
+COPY & 97.4 & 254.9 & 109.4 & 275.2 & 132.2 & 227.3 & 133.5 & 250.6 & 113.2 & 215.8 & 165.6 & 339.0 \\
+ADD & 94.4 & 252.9 & 152.8 & 279.9 & 149.5 & 307.6 & 141.0 & 1299.3 & 111.6 & 236.8 & 142.0 & 284.7 \\
+SCALE & 120.5 & 245.9 & 122.4 & 216.4 & 96.2 & 240.2 & 121.9 & 255.8 & 136.6 & 271.3 & 162.3 & 338.0 \\
+TRIAD & 66.6 & 203.8 & 113.5 & 241.6 & 141.1 & 1074.4 & 129.9 & 249.2 & 81.4 & 230.0 & 101.7 & 229.2 \\
+POW & 98.9 & 209.9 & 142.2 & 387.6 & 127.4 & 689.4 & 113.8 & 215.5 & 130.0 & 234.2 & 148.1 & 226.1 \\
+DGEMM & 155.5 & 214.4 & 142.8 & 229.8 & 140.6 & 213.5 & 159.7 & 687.3 & 138.7 & 224.6 & 170.9 & 242.5 \\
+\bottomrule
+\end{tabular*}
+\end{table*}

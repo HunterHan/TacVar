@@ -1,0 +1,18 @@
+\begin{table*}[htbp]
+\centering
+\caption{AMD EPYC 9554 tsc\_asym: $R_L$ and $R_H$ with different flush kernels (\%)}
+\label{tab:frkern-camd9554n2-tsc_asym}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccccccccccc}
+\toprule
+\multirow{3}{*}{Rear Flush} & \multicolumn{12}{c}{Front Flush} \\ \cmidrule(lr){2-13}
+& \multicolumn{2}{c}{COPY} & \multicolumn{2}{c}{ADD} & \multicolumn{2}{c}{SCALE} & \multicolumn{2}{c}{TRIAD} & \multicolumn{2}{c}{POW} & \multicolumn{2}{c}{DGEMM} \\ \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11} \cmidrule(lr){12-13}
+& $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ \\ \midrule
+COPY & 52.4 & 1013.3 & 53.9 & 70.4 & 64.3 & 68.9 & 52.7 & 63.3 & 61.4 & 88.6 & 60.8 & 61.6 \\
+ADD & 71.0 & 110.4 & 45.3 & 72.1 & 49.3 & 1126.2 & 53.1 & 120.2 & 56.1 & 70.6 & 57.7 & 1037.4 \\
+SCALE & 46.9 & 57.7 & 50.2 & 54.0 & 48.2 & 84.5 & 54.2 & 64.6 & 44.9 & 59.9 & 50.0 & 59.4 \\
+TRIAD & 45.1 & 52.0 & 47.4 & 58.7 & 59.8 & 2184.2 & 43.9 & 77.0 & 65.9 & 3618.8 & 46.3 & 69.6 \\
+POW & 50.1 & 58.7 & 48.6 & 67.7 & 55.4 & 66.1 & 62.4 & 62.7 & 48.6 & 57.7 & 57.6 & 69.2 \\
+DGEMM & 78.1 & 127.0 & 95.1 & 87.4 & 83.6 & 130.1 & 38.3 & 85.7 & 79.5 & 130.5 & 77.9 & 100.3 \\
+\bottomrule
+\end{tabular*}
+\end{table*}

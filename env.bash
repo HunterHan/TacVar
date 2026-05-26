@@ -4,8 +4,7 @@
 # - If a dependency directory isn't present, export USE_* = 0 so build/scripts can skip it.
 # - Users can override by exporting USE_* (0/1) before sourcing this file.
 
-conda deactivate
-source ~/miniconda3/bin/activate
+# Conda is optional. Do not require it on compute nodes unless USE_CONDA=1.
 
 PROJ_ROOT=$(realpath $(pwd))
 DATA_ROOT=$(realpath ~/code/data/)

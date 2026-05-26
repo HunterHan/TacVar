@@ -1,0 +1,18 @@
+\begin{table*}[htbp]
+\centering
+\caption{Kunpeng 920B clock\_gettime: $R_L$ and $R_H$ with different flush kernels (\%)}
+\label{tab:frkern-c920bn3-clock_gettime}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccccccccccc}
+\toprule
+\multirow{3}{*}{Rear Flush} & \multicolumn{12}{c}{Front Flush} \\ \cmidrule(lr){2-13}
+& \multicolumn{2}{c}{COPY} & \multicolumn{2}{c}{ADD} & \multicolumn{2}{c}{SCALE} & \multicolumn{2}{c}{TRIAD} & \multicolumn{2}{c}{POW} & \multicolumn{2}{c}{DGEMM} \\ \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11} \cmidrule(lr){12-13}
+& $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ \\ \midrule
+COPY & 15.6 & 15.7 & 23.3 & 20.8 & 23.2 & 19.8 & 27.0 & 42.6 & 13.1 & 19.7 & 18.3 & 28.1 \\
+ADD & 29.4 & 44.1 & 22.6 & 49.5 & 27.7 & 38.8 & 22.3 & 34.9 & 25.3 & 28.6 & 32.7 & 40.1 \\
+SCALE & 18.7 & 18.2 & 12.2 & 24.6 & 18.4 & 26.6 & 17.1 & 23.2 & 15.4 & 30.1 & 27.1 & 46.6 \\
+TRIAD & 28.7 & 38.4 & 23.9 & 46.8 & 21.5 & 29.5 & 20.5 & 17.5 & 22.8 & 29.2 & 22.3 & 26.8 \\
+POW & 25.2 & 27.4 & 16.4 & 51.2 & 18.0 & 29.1 & 25.7 & 34.2 & 11.7 & 48.1 & 25.3 & 36.3 \\
+DGEMM & 24.9 & 20.4 & 26.8 & 21.9 & 11.6 & 11.5 & 13.4 & 14.7 & 18.3 & 16.4 & 15.1 & 14.4 \\
+\bottomrule
+\end{tabular*}
+\end{table*}

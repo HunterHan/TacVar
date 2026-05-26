@@ -1,0 +1,18 @@
+\begin{table*}[htbp]
+\centering
+\caption{Kunpeng 920B cntvct\_fence: $R_L$ and $R_H$ with different flush kernels (\%)}
+\label{tab:frkern-c920bn3-cntvct_fence}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccccccccccc}
+\toprule
+\multirow{3}{*}{Rear Flush} & \multicolumn{12}{c}{Front Flush} \\ \cmidrule(lr){2-13}
+& \multicolumn{2}{c}{COPY} & \multicolumn{2}{c}{ADD} & \multicolumn{2}{c}{SCALE} & \multicolumn{2}{c}{TRIAD} & \multicolumn{2}{c}{POW} & \multicolumn{2}{c}{DGEMM} \\ \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11} \cmidrule(lr){12-13}
+& $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ \\ \midrule
+COPY & 21.0 & 22.3 & 34.0 & 34.1 & 35.9 & 25.7 & 27.7 & 42.9 & 23.2 & 30.7 & 36.2 & 39.5 \\
+ADD & 41.3 & 46.6 & 30.9 & 55.6 & 52.7 & 69.0 & 32.2 & 47.1 & 35.4 & 65.5 & 50.2 & 245.5 \\
+SCALE & 21.5 & 27.0 & 37.6 & 30.5 & 26.3 & 41.5 & 38.4 & 333.7 & 36.4 & 26.8 & 27.8 & 38.0 \\
+TRIAD & 42.2 & 50.5 & 29.9 & 47.0 & 25.5 & 47.8 & 27.9 & 60.4 & 30.2 & 50.6 & 27.7 & 33.9 \\
+POW & 27.1 & 20.5 & 21.3 & 14.3 & 6.8 & 9.4 & 17.3 & 17.3 & 23.1 & 19.8 & 18.2 & 16.9 \\
+DGEMM & 20.5 & 19.6 & 13.0 & 15.1 & 16.6 & 10.4 & 14.9 & 26.1 & 19.1 & 18.6 & 8.3 & 4.2 \\
+\bottomrule
+\end{tabular*}
+\end{table*}

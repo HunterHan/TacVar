@@ -1,0 +1,18 @@
+\begin{table*}[htbp]
+\centering
+\caption{Kunpeng 920B mpi\_wtime: $R_L$ and $R_H$ with different flush kernels (\%)}
+\label{tab:frkern-c920bn3-mpi_wtime}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccccccccccc}
+\toprule
+\multirow{3}{*}{Rear Flush} & \multicolumn{12}{c}{Front Flush} \\ \cmidrule(lr){2-13}
+& \multicolumn{2}{c}{COPY} & \multicolumn{2}{c}{ADD} & \multicolumn{2}{c}{SCALE} & \multicolumn{2}{c}{TRIAD} & \multicolumn{2}{c}{POW} & \multicolumn{2}{c}{DGEMM} \\ \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11} \cmidrule(lr){12-13}
+& $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ \\ \midrule
+COPY & 48.9 & 45.8 & 44.9 & 46.7 & 48.1 & 41.7 & 52.6 & 51.9 & 44.2 & 48.0 & 45.3 & 56.9 \\
+ADD & 50.5 & 53.5 & 34.7 & 58.9 & 49.3 & 90.3 & 31.4 & 45.5 & 44.2 & 42.6 & 36.8 & 49.2 \\
+SCALE & 40.9 & 42.7 & 45.9 & 47.9 & 46.5 & 47.5 & 46.0 & 561.1 & 50.5 & 36.3 & 39.9 & 30.6 \\
+TRIAD & 35.8 & 60.6 & 37.9 & 717.8 & 23.1 & 25.8 & 54.4 & 56.4 & 40.7 & 48.7 & 63.4 & 66.5 \\
+POW & 42.0 & 35.9 & 37.2 & 46.2 & 36.6 & 32.7 & 24.5 & 35.8 & 30.0 & 32.0 & 37.4 & 44.7 \\
+DGEMM & 39.7 & 35.9 & 27.0 & 23.6 & 28.3 & 30.7 & 25.5 & 22.9 & 47.4 & 34.4 & 53.8 & 36.2 \\
+\bottomrule
+\end{tabular*}
+\end{table*}

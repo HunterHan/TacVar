@@ -5,6 +5,16 @@ set -euo pipefail
 # to compute nodes. The run scripts on compute nodes look for these files under
 # codex_assets/walklists and fail if they are missing, unless
 # ASSESS_ALLOW_LOCAL_WALKLIST=1 is set explicitly for debugging.
+#
+# Typical manual Fig6/fsize use:
+#   cd ~/code/TacVar
+#   EXPR_LIST="assess.expr1.fsize.np64 assess.expr1.fsize.np128" \
+#   MU_LIST="10000" NWALKS=3 SIGMA_REL=0.015 \
+#     scripts/prepare_assess_walklists_af309.sh
+#
+# If EXPR_LIST is omitted, ASSESS_EXPR1_FSIZE_NP_LIST can append convenient
+# np-specific fsize names to the default list, e.g.:
+#   ASSESS_EXPR1_FSIZE_NP_LIST="64 128" NWALKS=3 scripts/prepare_assess_walklists_af309.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -14,9 +24,15 @@ if [[ "${HOST}" != "af309" ]]; then
   echo "[WARN] This script is intended to be run on af309; current host=${HOST}" >&2
 fi
 
-EXPR_LIST="${EXPR_LIST:-assess.expr1.timer assess.expr1.fsize assess.expr2.interval assess.expr3.frkern partes_expr1_fsize}"
+# EXPR_LIST="${EXPR_LIST:-assess.expr1.timer assess.expr1.fsize assess.expr2.interval assess.expr3.frkern partes_expr1_fsize}"
+EXPR_LIST="${EXPR_LIST:-assess.expr1.fsize}"
+if [[ -n "${ASSESS_EXPR1_FSIZE_NP_LIST:-}" ]]; then
+  for np in ${ASSESS_EXPR1_FSIZE_NP_LIST}; do
+    EXPR_LIST="${EXPR_LIST} assess.expr1.fsize.np${np}"
+  done
+fi
 MU_LIST="${MU_LIST:-10000}"
-NWALKS="${NWALKS:-100}"
+NWALKS="${NWALKS:-20}"
 SIGMA_REL="${SIGMA_REL:-0.015}"
 ASSESS_WALKLIST_ROOT="${ASSESS_WALKLIST_ROOT:-${REPO_DIR}/codex_assets/walklists}"
 
@@ -53,6 +69,8 @@ for expr in ${EXPR_LIST}; do
       echo "sigma_rel=${SIGMA_REL}"
     } >> "${out_meta}"
     count="$(assess_count_walks "${out_csv}")"
-    echo "[OK] ${EXPR_NAME} mu=${mu_ns}: ${out_csv} (${count} walks)"
+    sha="$(sha256sum "${out_csv}" | awk '{print $1}')"
+    echo "sha256=${sha}" >> "${out_meta}"
+    echo "[OK] ${EXPR_NAME} mu=${mu_ns}: ${out_csv} (${count} walks, sha256=${sha})"
   done
 done

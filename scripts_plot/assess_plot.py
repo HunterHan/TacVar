@@ -521,17 +521,20 @@ def main() -> None:
     args = ap.parse_args()
 
     args.output.mkdir(parents=True, exist_ok=True)
+    print(f"data_root:{args.data_root} date:{args.date} hosts:{args.hosts} all_batches:{args.all_batches} allow_incomplete:{args.allow_incomplete} output:{args.output}")
     df = collect(args.data_root, args.date, args.hosts)
+    print(df['expr'].unique())
     if df.empty:
         raise SystemExit("No assess_ta_cdf.csv files found.")
     if not args.all_batches:
         df = keep_latest_batches(df, complete_only=not args.allow_incomplete)
-
+    print(df['expr'].unique())
     summary_path = args.output / f"assess_summary_{args.date}.csv"
     df.to_csv(summary_path, index=False, quoting=csv.QUOTE_MINIMAL)
 
     produced: list[Path] = [summary_path]
     for expr in sorted(df["expr"].unique()):
+        print(expr)
         out = plot_line_expr(df, expr, args.output, args.date, args.hosts)
         if out is not None:
             produced.append(out)

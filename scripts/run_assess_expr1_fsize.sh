@@ -1,7 +1,47 @@
-#!/bin/bash -e
+#!/bin/bash
 set -euo pipefail
-pkill -u $(whoami) -9 "mpirun" || true
-pkill -u $(whoami) -9 "python3" || true
+
+################################################################################
+# Manual workflow
+#
+# 1. On af309, generate the walking list before uploading TacVar:
+#      cd ~/code/TacVar
+#      EXPR_LIST="assess.expr1.fsize.np64 assess.expr1.fsize.np128" \
+#      MU_LIST="10000" NWALKS=3 SIGMA_REL=0.015 \
+#        scripts/prepare_assess_walklists_af309.sh
+#
+# 2. Upload the whole TacVar checkout to the compute nodes.
+#
+# 3. On each compute node, run this script. It reads the pre-generated walking
+#    list from codex_assets/walklists and fails if the list is missing:
+#      cd ~/code/TacVar
+#      source env.bash
+#      EXPR_NAME=assess.expr1.fsize.np64 NP=64 NWALKS=3 NTESTS=100 NTILES=100 \
+#      DATE_BASE=20260521 OUT_BASE=~/code/data OUTPUT_DIR=outputAssessing \
+#      TIMER_LIST="tsc tsc_asym clock_gettime mpi_wtime" \
+#        scripts/run_assess_expr1_fsize.sh
+#
+# Useful knobs:
+#   ASSESS_KILL_STALE=1          kill stale mpirun/python3 before starting
+#   ASSESS_ALLOW_LOCAL_WALKLIST=1 generate locally only for debugging
+#   ASSESS_ALLOW_AF309_RUN=1     bypass the af309 safety guard
+################################################################################
+
+if [[ "${ASSESS_KILL_STALE:-0}" == "1" ]]; then
+  pkill -u "$(whoami)" -9 "mpirun" || true
+  pkill -u "$(whoami)" -9 "python3" || true
+fi
+
+HOST_SHORT="$(hostname -s 2>/dev/null || hostname)"
+ASSESS_ALLOWED_HOSTS="${ASSESS_ALLOWED_HOSTS:-c920bn3 camd9554n2 cgnr6760pn2}"
+if [[ "${ASSESS_ALLOW_OTHER_HOST:-0}" != "1" && " ${ASSESS_ALLOWED_HOSTS} " != *" ${HOST_SHORT} "* ]]; then
+  echo "ERROR: this assess runner is allowed only on compute nodes by default." >&2
+  echo "  current host: ${HOST_SHORT}" >&2
+  echo "  allowed hosts: ${ASSESS_ALLOWED_HOSTS}" >&2
+  echo "Upload TacVar to a compute node, then run this script there." >&2
+  echo "Set ASSESS_ALLOW_OTHER_HOST=1 only for deliberate debugging." >&2
+  exit 3
+fi
 
 ################################################################################
 # !!! CPU frequency lock (cpupower) !!!
@@ -78,8 +118,6 @@ date
 # Per combo:
 #   <timestamp>/<timer>/<combo>/meta.md
 #   <timestamp>/<timer>/<combo>/<timer>_walks/w####_ta<ns>/...
-EXPR_NAME="${EXPR_NAME:-assess.expr1.fsize}"
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC_DIR="${SCRIPT_DIR}/../src/partes"
 BINARY="${SRC_DIR}/assess-mpi.x"
@@ -112,7 +150,7 @@ _pt_filter_timers() {
 }
 
 # ====== User-configurable parameters ======
-EXPR_NAME="${EXPR_NAME:-partes_expr1_fsize}"
+EXPR_NAME="${EXPR_NAME:-assess.expr1.fsize}"
 EXPR_ID="${EXPR_ID:-}"
 NP="${NP:-128}"
 GAUGE="${GAUGE:-sub_scalar}"
@@ -131,7 +169,7 @@ RKERN_LIST="${RKERN_LIST:-none}"
 # If not set, fall back to single TIMER or default clock_gettime.
 # TIMER="${TIMER:-tsc_asym clock_gettime mpi_wtime papi papix6 likwid}"÷
 case "$(uname -m)" in
-  x86_64) DEFAULT_TIMER_LIST="tsc tsc_asym clock_gettime mpi_wtime papi papix6 likwid" ;;
+  x86_64) DEFAULT_TIMER_LIST="tsc clock_gettime mpi_wtime papi papix6 likwid" ;;
   aarch64) DEFAULT_TIMER_LIST="cntvct cntvct_fence cntvcto clock_gettime mpi_wtime papi papix6 likwid" ;;
   *) DEFAULT_TIMER_LIST="clock_gettime mpi_wtime papi papix6 likwid" ;;
 esac
@@ -148,8 +186,8 @@ echo "[INFO] FKERN_LIST='${FKERN_LIST}' RKERN_LIST='${RKERN_LIST}'"
 
 FSIZE="${FSIZE:-0}"      # Single value is not used directly; fsize sweep is defined separately.
 RSIZE_LIST=(${RSIZE_LIST[@]:-0})
-NTESTS="${NTESTS:-100}"
-NTILES="${NTILES:-100}"
+NTESTS="${NTESTS:-20}"
+NTILES="${NTILES:-20}"
 CUT_P="${CUT_P:-0.995}"
 NWALKS="${NWALKS:-100}"
 SIGMA_REL="${SIGMA_REL:-0.015}"
@@ -270,6 +308,8 @@ fi
 assess_use_shared_walklist "${WALK_MU_NS}" "${OUT_ROOT}"
 echo "[INFO] Shared walk list: ${SHARED_WALK_LIST} (${walk_count} walks)"
 echo "[INFO] Shared walk list source: ${ASSESS_WALKLIST_SOURCE}"
+WALK_LIST_SHA256="$(sha256sum "${SHARED_WALK_LIST}" | awk '{print $1}')"
+echo "[INFO] Shared walk list sha256: ${WALK_LIST_SHA256}"
 print_assess_overview() {
   echo ""
   echo "[Assess Overview]"
@@ -290,6 +330,7 @@ print_assess_overview() {
   echo "  nwalks: ${NWALKS}"
   echo "  walk_distribution: N(0, sigma_rel=${SIGMA_REL}) + tbase"
   echo "  walk_count: ${walk_count}"
+  echo "  walk_sha256: ${WALK_LIST_SHA256}"
   echo ""
 }
 print_assess_overview
@@ -339,7 +380,7 @@ run_one_walk() {
       taskset -c "${CORE_LIST}" \
       "${BINARY}" \
         --ta "${ta}" \
-        --tb "${ta}" \
+        --tb "${tb}" \
         --ntests "${NTESTS}" \
         --ntiles "${NTILES}" \
         --cut-p "${CUT_P}" \
@@ -394,6 +435,8 @@ for timer in ${TIMER_LIST}; do
             echo "| rsize_kib | \`${rsize_kib}\` |"
             echo "| rsize_list | \`${RSIZE_LIST[*]}\` |"
             echo "| walk_list | \`${SHARED_WALK_LIST}\` |"
+            echo "| walk_list_source | \`${ASSESS_WALKLIST_SOURCE}\` |"
+            echo "| walk_list_sha256 | \`${WALK_LIST_SHA256}\` |"
             echo "| walk_list_meta | \`${SHARED_WALK_META}\` |"
             echo "| meta_txt | \`${META_TXT}\` |"
             echo "| binary | \`${BINARY}\` |"
@@ -437,5 +480,6 @@ done
 echo ""
 echo "All done. Results under: ${OUT_ROOT}"
 
-# check last user
-{ last -n 20; last | grep still; }
+if [[ "${ASSESS_PRINT_LAST:-1}" == "1" ]]; then
+  { last -n 20; last | grep still; } || true
+fi

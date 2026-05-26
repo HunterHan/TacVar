@@ -1,0 +1,18 @@
+\begin{table*}[htbp]
+\centering
+\caption{Intel Xeon 6760P likwid: $R_L$ and $R_H$ with different flush kernels (\%)}
+\label{tab:frkern-cgnr6760pn2-likwid}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccccccccccc}
+\toprule
+\multirow{3}{*}{Rear Flush} & \multicolumn{12}{c}{Front Flush} \\ \cmidrule(lr){2-13}
+& \multicolumn{2}{c}{COPY} & \multicolumn{2}{c}{ADD} & \multicolumn{2}{c}{SCALE} & \multicolumn{2}{c}{TRIAD} & \multicolumn{2}{c}{POW} & \multicolumn{2}{c}{DGEMM} \\ \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11} \cmidrule(lr){12-13}
+& $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ & $R_L$ & $R_H$ \\ \midrule
+COPY & 100.3 & 167.8 & 94.1 & 174.6 & 129.6 & 253.8 & 101.2 & 169.7 & 132.7 & 1154.5 & 80.6 & 151.3 \\
+ADD & 128.5 & 144.2 & 86.0 & 171.4 & 106.7 & 196.0 & 112.8 & 1122.6 & 96.2 & 197.1 & 109.4 & 157.8 \\
+SCALE & 91.6 & 146.4 & 102.9 & 339.9 & 72.9 & 140.9 & 105.7 & 145.7 & 95.1 & 203.3 & 70.8 & 145.5 \\
+TRIAD & 108.7 & 200.1 & 108.4 & 172.6 & 71.6 & 193.7 & 107.6 & 209.9 & 92.3 & 172.8 & 112.8 & 158.2 \\
+POW & 87.8 & 146.3 & 120.8 & 169.2 & 146.2 & 1276.6 & 99.9 & 177.0 & 160.8 & 223.7 & 106.1 & 2691.4 \\
+DGEMM & 97.0 & 169.5 & 78.9 & 152.3 & 87.7 & 141.2 & 93.5 & 132.0 & 89.4 & 156.5 & 90.4 & 828.3 \\
+\bottomrule
+\end{tabular*}
+\end{table*}

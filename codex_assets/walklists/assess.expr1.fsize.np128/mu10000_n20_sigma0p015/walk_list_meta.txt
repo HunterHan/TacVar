@@ -1,0 +1,15 @@
+walk_list_type=normal
+mu_ns=10000.0
+sigma_rel=0.015
+lcut_rel=0.5
+hcut_rel=1.5
+nwalks=20
+npass=0
+generated_on_host=mlogn2.hpc321.sjtu.edu.cn
+generated_at=2026-05-21_22:08:15
+repo=/astrum/home/hpchzy/code/TacVar
+expr_name=assess.expr1.fsize.np128
+mu_ns=10000
+nwalks=20
+sigma_rel=0.015
+sha256=5f7a0d0d4cc61f296e79716fc96263f3c44b67368f836a94e4bc59e812799af1

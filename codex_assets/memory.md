@@ -184,4 +184,25 @@ Note: the correct third hostname is `cgnr6760pn2`, not `cngr6760pn2`.
     - `camd9554n2`: `tsc`, `tsc_asym`, `clock_gettime`, `mpi_wtime` for `np64`; `tsc`, `clock_gettime`, `mpi_wtime` for `np128`.
     - `cgnr6760pn2`: `tsc`, `tsc_asym`, `clock_gettime`, `mpi_wtime` for both `np64` and `np128`.
   - `camd9554n2 np128 tsc_asym` hung at the larger fsize part of the original batch and was excluded from the final plot because it lacked complete points for `1024 2048 4096 8192` KiB. The run was not broadly patched; stable timers were resumed in a separate batch.
+  - Fig6 `R_H` diagnosis: c920b looks smoother because its high-tail samples stay near the 10us target, while x86 runs contain sparse long-tail outliers. Example: `cgnr6760pn2 np128 clock_gettime fsize16` has CDF tail up to `929931 ns`, with rank-local spikes on rank 0/127 and many ~30us spikes; comparable c920b case max is only ~`10380 ns`.
+  - This is not a walking-list mismatch: the three nodes use the same shared list, so `R_H` denominator is the same per `np` (`~279 ns` for `np64`, `~177 ns` for `np128`). Sparse x86 outliers divided by this small denominator inflate `R_H` to hundreds/thousands and can make small-fsize points look unordered.
+  - Likely contributors: no `isolcpus`, `np128` occupies all 128 cores, x86 nodes have inactive `irqbalance`, and OS/daemon/interrupt noise can land on experiment ranks. Treat current x86 `R_H` as high-tail noise sensitive; for tex-quality reruns prefer cleaner cores/housekeeping isolation or repeated batches with median-of-runs.
+  - Plot-only top-1% truncation (`99%`) did not stabilize x86 enough: `cgnr6760pn2` small-fsize `R_H` still reached about `999.8%` for `np64` and `1387.4%` for `np128`; `camd9554n2 np128` still reached about `398%`. Do not treat 99% truncation alone as a valid fix.
+  - Guarded repeat2 on 2026-05-21:
+    - `camd9554n2` stopped before running as intended because precheck found a high-CPU process (`hpchzy systemd`, about `24%` CPU). Do not relaunch camd repeat2 until the node is clean or the user explicitly asks.
+    - `cgnr6760pn2` passed `last`/`ps` precheck and completed `assess.expr1.fsize.np64.repeat2` and `np128.repeat2`.
+    - Repeat2 comparison artifacts: `scripts_plot/outputAssessing/fig6_repeat2_guarded_compare/cgnr_repeat2_compare.md`, `cgnr_repeat2_vs_base_repeat1.csv`, `cgnr_repeat2_stats.csv`, and `cgnr_repeat2_worst_rh.csv`.
+    - Repeat2 did not prove the x86 `R_H` issue is solved by a clean precheck: small-fsize max `R_H` for `cgnr6760pn2` was `1481.4%` (`np64`) and `4056.3%` (`np128`, `mpi_wtime`). This suggests tail instability remains metric/data-sensitive, not only an obvious concurrent high-CPU-process artifact.
+  - Camd no-guard repeat2 on 2026-05-21:
+    - User requested running even with the `hpchzy systemd --user` process present. The no-guard script still printed `last` and `ps -eo user,pid,psr,pcpu,pmem,comm --sort=-pcpu | head -n 30`, but did not stop on high CPU.
+    - Completed `camd9554n2` `assess.expr1.fsize.np64.repeat2` batch `20260521_184802` and `np128.repeat2` batch `20260521_185512`; raw data was rsynced back to `af309:~/code/data/20260521/camd9554n2/outputAssessing/`.
+    - Camd repeat2 quicklook artifacts: `scripts_plot/outputAssessing/fig6_repeat2_camd_noguard/all_batches/assess_summary_20260521.csv` and per-np RL/RH/Wasserstein PNGs.
+    - Combined fig6 with `c920bn3` previous final (`20260520`), `camd9554n2` repeat2 no-guard (`20260521`), and `cgnr6760pn2` repeat2 guarded (`20260521`) is under `scripts_plot/outputAssessing/fig6_combined_c920_final_cgnr_camd_repeat2/`.
+    - Combined fig6 files: `assess.expr1.fsize.np64_rl_rh_combined_c920final_cgnr-camd-repeat2_20260521.png`, `assess.expr1.fsize.np128_rl_rh_combined_c920final_cgnr-camd-repeat2_20260521.png`, `fig6_combined_summary_20260521.csv`, and `fig6_combined_status_20260521.md`.
+  - Manual assess expr1 fsize workflow:
+    - On `af309`, generate walking lists before upload. Example: `EXPR_LIST="assess.expr1.fsize.np64 assess.expr1.fsize.np128" MU_LIST=10000 NWALKS=3 SIGMA_REL=0.015 scripts/prepare_assess_walklists_af309.sh`.
+    - Upload the whole TacVar checkout to compute nodes after the walk lists are present under `codex_assets/walklists/`.
+    - On compute nodes, use `scripts/manual_assess_expr1_fsize.sh` or call `scripts/run_assess_expr1_fsize.sh` directly with `EXPR_NAME=assess.expr1.fsize.np64|np128`, `NP=64|128`, `DATE_BASE`, `OUT_BASE`, `OUTPUT_DIR`, `TIMER_LIST`, `NWALKS`, `NTESTS`, and `NTILES`.
+    - `run_assess_expr1_fsize.sh` must read the pre-generated walk list and fail if it is missing; `ASSESS_ALLOW_LOCAL_WALKLIST=1` is debugging-only. It is allowed only on `c920bn3`, `camd9554n2`, and `cgnr6760pn2` by default; override with `ASSESS_ALLOW_OTHER_HOST=1` only for deliberate debugging.
+    - Plot manually downloaded data on `af309` with `scripts_plot/assess_expr1_fsize_manual_plot.ipynb`; edit the parameter cell for `DATA_ROOT`, `DATE`, `HOSTS`, `EXPRS`, `OUTPUT_DIR`, expected samples, fsize list, and optional batch selection.
 - Defer gpns/abort stabilization until a data run actually fails.
