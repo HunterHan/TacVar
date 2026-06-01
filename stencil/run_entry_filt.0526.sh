@@ -17,14 +17,15 @@ trap cleanup EXIT
 
 
 CFLAGS="-O2 -Wall -g"
+BASE_CFLAGS="$CFLAGS"
 
 # Meta
 FILTER_ROOT="${PROJ_ROOT}/src/filter/"
 PYTHON="python3"
 BINW_MIN=10
 P_LOW=0.01
-# NSAMP=1000
-NSAMP=100000
+NSAMP=1000
+# NSAMP=100000
 
 ARCH=$(uname -m)
 HOSTNAME=$(hostname)
@@ -39,6 +40,7 @@ NP_LIST=${NP_LIST:-"64"}
 # TIMER_LIST=${TIMER_LIST:-"cgt papi papix6 wtime"}
 TIMER_LIST=${TIMER_LIST:-"cgt papi"}
 SIZE_LIST=${SIZE_LIST:-"512"}
+# SIZE_LIST=${SIZE_LIST:-"1024"}
 
 case $HOSTNAME in
     "camd9554n2")
@@ -89,7 +91,7 @@ echo "NSPV: ${NSPV} ns per cycle"
 # Adapte
 case $ARCH in 
     "x86_64")
-        TIMER_LIST="$TIMER_LIST tsc likwid"
+        TIMER_LIST="$TIMER_LIST tsc tsc_fence tsc_native likwid"
         ;;
     "aarch64")
         TIMER_LIST="$TIMER_LIST cntvct cntvcto"
@@ -107,18 +109,19 @@ rm -f *.x
 
 for kernel in $KERNEL_LIST; do
     for timer in $TIMER_LIST; do
+        timer_cflags="$BASE_CFLAGS"
         case $timer in 
             "papi" | "papix6")
-                CFLAGS="$CFLAGS -I${PAPI_HOME}/include -L${PAPI_HOME}/lib -lpapi"
+                timer_cflags="$timer_cflags -I${PAPI_HOME}/include -L${PAPI_HOME}/lib -lpapi"
                 ;;
             "likwid")
-                CFLAGS="$CFLAGS -I${LIKWID_HOME}/include -L${LIKWID_HOME}/lib -llikwid"
+                timer_cflags="$timer_cflags -DLIKWID_PERFMON -I${LIKWID_HOME}/include -L${LIKWID_HOME}/lib -llikwid"
                 ;;
             *)
                 ;;
         esac
-        mpicc -o "${kernel}_${timer}.x" "${kernel}.c"  $CFLAGS -DTIMING "-DUSE_${timer^^}" -I"${OPENBLAS_HOME}/include" -L"${OPENBLAS_HOME}/lib" -lgsl -lopenblas
-        mpicc -o "${kernel}_${timer}_tf.x" "${kernel}.c"  $CFLAGS -DSTAGE_TF -DTIMING "-DUSE_${timer^^}" -I"${OPENBLAS_HOME}/include" -L"${OPENBLAS_HOME}/lib" -lgsl -lopenblas
+        mpicc -o "${kernel}_${timer}.x" "${kernel}.c" $timer_cflags -DTIMING "-DUSE_${timer^^}" -I"${OPENBLAS_HOME}/include" -L"${OPENBLAS_HOME}/lib" -lgsl -lopenblas
+        mpicc -o "${kernel}_${timer}_tf.x" "${kernel}.c" $timer_cflags -DSTAGE_TF -DTIMING "-DUSE_${timer^^}" -I"${OPENBLAS_HOME}/include" -L"${OPENBLAS_HOME}/lib" -lgsl -lopenblas
 
         for np in $NP_LIST; do
             for size in $SIZE_LIST; do
@@ -133,10 +136,21 @@ for kernel in $KERNEL_LIST; do
                 rm -rf "$tm_dir" "$te_dir" "$res_dir"
                 rm -rf ./*.csv
                 mkdir -p "$tm_dir" "$te_dir" "$res_dir"
-                mpirun -np $np --map-by core --bind-to core "./${kernel}_${timer}.x" "${size}" "${NSAMP}"
+                if [ "$timer" = "likwid" ]; then
+                    run_cmd=(likwid-mpirun -mpi openmpi -np "$np" -g "${LIKWID_GROUP:-L3}" -m)
+                else
+                    run_cmd=(mpirun -np "$np" --map-by core --bind-to core)
+                fi
+
+                "${run_cmd[@]}" "./${kernel}_${timer}.x" "${size}" "${NSAMP}" 0 1
                 mv ./*.csv "$tm_dir/"
-                mpirun -np $np --map-by core --bind-to core "./${kernel}_${timer}_tf.x" "${size}" "${NSAMP}"
+                "${run_cmd[@]}" "./${kernel}_${timer}_tf.x" "${size}" "${NSAMP}" 0 1
                 mv ./*.csv "$te_dir/"
+
+                if [ "$timer" = "likwid" ]; then
+                    awk -F, '{if ($2 != 0) ok=1} END{exit ok ? 0 : 1}' "$tm_dir"/*.csv || { echo "Invalid LIKWID tm: all timing values are zero"; exit 1; }
+                    awk -F, '{if ($3 != 0) ok=1} END{exit ok ? 0 : 1}' "$te_dir"/*.csv || { echo "Invalid LIKWID tf: all timing values are zero"; exit 1; }
+                fi
 
                 "${PYTHON}" "${FILTER_ROOT}/get_met.py" "${tm_dir}" 1
                 "${PYTHON}" "${FILTER_ROOT}/get_tf.py" "${te_dir}" 1 2 "${NSPV}"
