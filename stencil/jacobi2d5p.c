@@ -8,6 +8,8 @@
 #include <sched.h>
 #include "mpi.h"
 
+#include <x86intrin.h>
+
 #ifdef TIMING
 #if defined(USE_PAPI) || defined(USE_PAPIX6)
 #include "papi.h"
@@ -71,37 +73,74 @@
 
 #define NS_PER_TICK  1
 
-#ifdef USE_TSC
-void
-tsc_start(uint64_t *cycle) {
-    unsigned ch, cl;
+#if defined(__x86_64__)
+// void
+// tsc_start(uint64_t *cycle) {
+//     unsigned ch, cl;
 
-    asm volatile (  "CPUID" "\n\t"
-                    "RDTSC" "\n\t"
-                    "mov %%edx, %0" "\n\t"
-                    "mov %%eax, %1" "\n\t"
-                    : "=r" (ch), "=r" (cl)
-                    :
-                    : "%rax", "%rbx", "%rcx", "%rdx");
-    *cycle = ( ((uint64_t)ch << 32) | cl );
+//     asm volatile (  "CPUID" "\n\t"
+//                     "RDTSC" "\n\t"
+//                     "mov %%edx, %0" "\n\t"
+//                     "mov %%eax, %1" "\n\t"
+//                     : "=r" (ch), "=r" (cl)
+//                     :
+//                     : "%rax", "%rbx", "%rcx", "%rdx");
+//     *cycle = ( ((uint64_t)ch << 32) | cl );
+// }
+
+// void
+// tsc_stop(uint64_t *cycle) {
+//     unsigned ch, cl;
+
+//     asm volatile (  "RDTSCP" "\n\t"
+//                     "mov %%edx, %0" "\n\t"
+//                     "mov %%eax, %1" "\n\t"
+//                     "CPUID" "\n\t"
+//                     : "=r" (ch), "=r" (cl)
+//                     :
+//                     : "%rax", "%rbx", "%rcx", "%rdx");
+
+//     *cycle = ( ((uint64_t)ch << 32) | cl );
+// }
+
+static inline void tsc_start(uint64_t *cycle){
+    _mm_lfence();
+    *cycle = __rdtsc();
+    return ;
 }
 
-void
-tsc_stop(uint64_t *cycle) {
-    unsigned ch, cl;
+static inline void tsc_stop(uint64_t *cycle){
+    unsigned aux;
+    *cycle = __rdtscp(&aux);
+    _mm_lfence();
+    return ;
+}
 
-    asm volatile (  "RDTSCP" "\n\t"
-                    "mov %%edx, %0" "\n\t"
-                    "mov %%eax, %1" "\n\t"
-                    "CPUID" "\n\t"
-                    : "=r" (ch), "=r" (cl)
-                    :
-                    : "%rax", "%rbx", "%rcx", "%rdx");
+static inline uint64_t nsec_now(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000ull + ts.tv_nsec;
+}
 
-    *cycle = ( ((uint64_t)ch << 32) | cl );
+static double calibrate_ns_per_tsc(void){
+    struct timespec req = {
+        .tv_sec = 0,
+        .tv_nsec = 200000000, // 200ms
+    };
+
+    uint64_t c0, c1;
+    uint64_t n0 = nsec_now();
+    tsc_start(&c0);
+    nanosleep(&req, NULL);
+    tsc_stop(&c1);
+    uint64_t n1 = nsec_now();
+
+    return (double)(n1 - n0) / (double)(c1 - c0);
 }
 
 #endif
+
+
 
 #if defined(USE_CNTVCT) || defined(USE_CNTVCTO)
 static uint64_t g_cntfrq = 0;
@@ -179,6 +218,8 @@ main(int argc, char **argv) {
     int myrank, nrank, errid;
     double tsc_ns;
 
+    uint64_t volatile c, nsamp;
+
     if (argc >= 2) {
         narr = (uint64_t)atoll(argv[1]);
     } else {
@@ -186,10 +227,23 @@ main(int argc, char **argv) {
     }
 
     if (argc >= 3) {
-        tsc_ns = atof(argv[2]);
+        nsamp = (uint64_t)atoll(argv[2]);
+        printf("NSAMP = %lu\n", nsamp);
+        c = 1;
     } else {
-        tsc_ns = 1.0;
+        printf("NSAMP IS MISSING\n");
+        return -1;
     }
+
+#if defined(__x86_64__)
+    tsc_ns = calibrate_ns_per_tsc();
+    if (myrank == 0) {
+        printf("Calibrated TSC frequency: %f GHz\n", 1e0 / tsc_ns);
+    }
+
+#endif
+
+
 
     x = (double **)malloc(narr * sizeof(double*));
     y = (double **)malloc(narr * sizeof(double*));
@@ -317,6 +371,8 @@ main(int argc, char **argv) {
     MPI_Barrier(MPI_COMM_WORLD);
     clock_gettime(CLOCK_MONOTONIC, &tv);
     nsec_st = tv.tv_sec * 1e9 + tv.tv_nsec;
+
+    uint64_t ra_res = 0;
     for (int it = 0; it < ntest; it ++) {
         for (uint64_t i = 0; i < narr; i ++) {
             for (uint64_t j = 0; j < narr; j ++) {
@@ -325,6 +381,8 @@ main(int argc, char **argv) {
         }
 
         for (uint64_t j = 1; j < narr-1; j ++) {
+
+#ifndef STAGE_TF
 #ifdef TIMING
 
 // Timing.
@@ -362,9 +420,85 @@ main(int argc, char **argv) {
 #endif
 
 #endif
+
+#endif
+
             for (uint64_t k = 1; k < narr-1; k ++) {
                 y[j][k] = a * x[j][k] + b * (x[j-1][k] + x[j+1][k] + x[j][k-1] + x[j][k+1]);
             }
+
+#ifdef STAGE_TF
+#ifdef TIMING
+
+// Timing.
+#ifdef USE_PAPI
+            ns0 = PAPI_get_real_nsec();
+
+#elif USE_PAPIX6
+            ns0 = PAPI_get_real_nsec();
+            PAPI_read(eventset, ev_vals_0);
+
+#elif USE_CGT
+            clock_gettime(CLOCK_MONOTONIC, &tv);
+            ns0 = tv.tv_sec * 1e9 + tv.tv_nsec;
+
+#elif USE_WTIME
+            ns0 = (uint64_t)(MPI_Wtime() * 1e9);
+
+#elif USE_CNTVCT
+            ns0 = cntvct_to_ns(read_cntvct());
+
+#elif USE_CNTVCTO
+            ns0 = cntvct_to_ns(read_cntvcto_start());
+
+#elif USE_LIKWID
+            //ns0 = 0;
+            LIKWID_MARKER_START("vkern"); 
+
+#elif USE_TSC
+            tsc_start(&ns0);
+
+#else
+            _read_ns (ns0);
+            _mfence;
+
+#endif
+
+#endif
+
+            register uint64_t ra = nsamp * 4;
+            while (ra > 0) {
+                // asm volatile(
+                //     "1:\n\t"
+                //     "sub $1, %[ra]\n\t"
+                //     "sub $1, %[ra]\n\t"
+                //     "jnz 1b\n\t"
+                //     : [ra] "+r"(ra)
+                //     :
+                //     : "cc"
+                // );
+  
+                __asm__ __volatile__(
+                    "1:\n\t"
+                    "sub $1, %0\n\t"
+                    "sub $1, %0\n\t"
+                    "sub $1, %0\n\t"
+                    "sub $1, %0\n\t"
+                    "jnz 1b\n\t"
+                    "2:\n\t"
+                    : "+r"(ra)
+                    :
+                    : "cc");
+                // ra -= 1;
+            }
+#endif
+
+
+
+
+
+
+
 #ifdef TIMING
 
 #ifdef USE_PAPI
@@ -422,6 +556,10 @@ main(int argc, char **argv) {
 #endif
 
 #endif
+
+#ifdef STAGE_TF
+            ra_res += ra;
+#endif
         }
     }
 
@@ -474,7 +612,11 @@ main(int argc, char **argv) {
 
     for (int it = NPASS; it < ntest; it ++) {
         for (size_t j = 1; j < narr-1; j ++) {
+#ifndef STAGE_TF
             fprintf(fp, "%d,%lu", myrank, p_ns[it*narr+j]);
+#else
+            fprintf(fp, "%d,%lu,%lu", myrank, nsamp, p_ns[it*narr+j]);
+#endif
 
 #if defined(USE_LIKWID) || defined(USE_PAPIX6)
             for (int iev = 0; iev < nev; iev ++) {
@@ -496,7 +638,7 @@ main(int argc, char **argv) {
 #endif
 
     if (myrank == 0) {
-        printf("Done. %f\n", y[narr/2][narr/2]);
+        printf("Done. %f %llu\n", y[narr/2][narr/2], ra_res);
     }
 
     for (size_t i = 0; i < narr; i ++) {
