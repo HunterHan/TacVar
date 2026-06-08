@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sched.h>
+#if defined(__x86_64__)
+#include <x86intrin.h>
+#endif
 #include "mpi.h"
 
 #ifdef TIMING
@@ -71,9 +74,9 @@
 
 #define NS_PER_TICK  1
 
-#ifdef USE_TSC
-void
-tsc_start(uint64_t *cycle) {
+#if defined(__x86_64__) && (defined(USE_TSC) || defined(USE_TSC_FENCE) || defined(USE_TSC_NATIVE))
+static inline void tsc_start(uint64_t *cycle){
+#if defined(USE_TSC)
     unsigned ch, cl;
 
     asm volatile (  "CPUID" "\n\t"
@@ -84,10 +87,16 @@ tsc_start(uint64_t *cycle) {
                     :
                     : "%rax", "%rbx", "%rcx", "%rdx");
     *cycle = ( ((uint64_t)ch << 32) | cl );
+#elif defined(USE_TSC_FENCE)
+    _mm_lfence();
+    *cycle = __rdtsc();
+#else
+    *cycle = __rdtsc();
+#endif
 }
 
-void
-tsc_stop(uint64_t *cycle) {
+static inline void tsc_stop(uint64_t *cycle){
+#if defined(USE_TSC)
     unsigned ch, cl;
 
     asm volatile (  "RDTSCP" "\n\t"
@@ -99,6 +108,35 @@ tsc_stop(uint64_t *cycle) {
                     : "%rax", "%rbx", "%rcx", "%rdx");
 
     *cycle = ( ((uint64_t)ch << 32) | cl );
+#else
+    unsigned aux;
+    *cycle = __rdtscp(&aux);
+#if defined(USE_TSC_FENCE)
+    _mm_lfence();
+#endif
+#endif
+}
+
+static inline uint64_t nsec_now(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000ull + ts.tv_nsec;
+}
+
+static double calibrate_ns_per_tsc(void){
+    struct timespec req = {
+        .tv_sec = 0,
+        .tv_nsec = 200000000,
+    };
+
+    uint64_t c0, c1;
+    uint64_t n0 = nsec_now();
+    tsc_start(&c0);
+    nanosleep(&req, NULL);
+    tsc_stop(&c1);
+    uint64_t n1 = nsec_now();
+
+    return (double)(n1 - n0) / (double)(c1 - c0);
 }
 #endif
 
@@ -166,6 +204,42 @@ fill_random(double *arr, size_t size) {
     return;
 }
 
+static inline uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
+#if defined(__x86_64__)
+    __asm__ __volatile__(
+        "1:\n\t"
+        "subq %[rb], %[ra]\n\t"
+        "subq %[rb], %[ra]\n\t"
+        "cmpq %[lower], %[ra]\n\t"
+        "ja 1b\n\t"
+        : [ra] "+&r"(ra)
+        : [rb] "r"(rb),
+          [lower] "r"(lower)
+        : "cc"
+    );
+    return ra;
+#elif defined(__aarch64__)
+    __asm__ __volatile__(
+        "1:\n\t"
+        "sub %[ra], %[ra], %[rb]\n\t"
+        "sub %[ra], %[ra], %[rb]\n\t"
+        "cmp %[ra], %[lower]\n\t"
+        "b.hi 1b\n\t"
+        : [ra] "+&r"(ra)
+        : [rb] "r"(rb),
+          [lower] "r"(lower)
+        : "cc"
+    );
+    return ra;
+#else
+    do {
+        ra -= rb;
+        ra -= rb;
+    } while (ra > lower);
+    return ra;
+#endif
+}
+
 int
 main(int argc, char **argv) {
     uint64_t ntest;
@@ -176,7 +250,9 @@ main(int argc, char **argv) {
     struct timespec tv;
     uint64_t volatile nsec_st, nsec_en; // For warmup
     int myrank, nrank, errid;
-    double tsc_ns;
+    double tsc_ns = 1.0;
+    uint64_t nsamp;
+    uint64_t ra_lower_boundary, rb_step;
 
     if (argc >= 2) {
         narr = (uint64_t)atoll(argv[1]);
@@ -185,9 +261,20 @@ main(int argc, char **argv) {
     }
 
     if (argc >= 3) {
-        tsc_ns = atof(argv[2]);
+        nsamp = (uint64_t)atoll(argv[2]);
+        printf("NSAMP = %lu\n", nsamp);
     } else {
-        tsc_ns = 1.0;
+        printf("NSAMP IS MISSING\n");
+        return -1;
+    }
+
+    if (argc >= 5) {
+        ra_lower_boundary = (uint64_t)atoll(argv[3]);
+        rb_step = (uint64_t)atoll(argv[4]);
+        printf("ra_lower_boundary = %lu, rb_step = %lu\n", ra_lower_boundary, rb_step);
+    } else {
+        printf("ra boundary missing!\n");
+        return -1;
     }
 
     w = (double **)malloc(narr * sizeof(double*));
@@ -224,9 +311,15 @@ main(int argc, char **argv) {
 #endif
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
-    
+#if defined(__x86_64__) && (defined(USE_TSC) || defined(USE_TSC_FENCE) || defined(USE_TSC_NATIVE))
+    tsc_ns = calibrate_ns_per_tsc();
     if (myrank == 0) {
-        printf("A 2D 5-point Jacobi stencil scheme.\nNTEST=%lu, NPASS=%u, NARR=%lu \n", 
+        printf("Calibrated TSC frequency: %f GHz\n", 1e0 / tsc_ns);
+    }
+#endif
+
+    if (myrank == 0) {
+        printf("TeaLeaf cg_calc_w kernel.\nNTEST=%lu, NPASS=%u, NARR=%lu \n", 
                 ntest, NPASS, narr);
     }
 
@@ -348,8 +441,11 @@ main(int argc, char **argv) {
     MPI_Barrier(MPI_COMM_WORLD);
     clock_gettime(CLOCK_MONOTONIC, &tv);
     nsec_st = tv.tv_sec * 1e9 + tv.tv_nsec;
+
+    uint64_t ra_res = 0;
     for (int it = 0; it < ntest; it ++) {
         for (uint64_t j = 1; j < narr-1; j ++) {
+#ifndef STAGE_TF
 #ifdef TIMING
 
 // Timing.
@@ -377,7 +473,7 @@ main(int argc, char **argv) {
             //ns0 = 0;
             LIKWID_MARKER_START("vkern"); 
 
-#elif USE_TSC
+#elif defined(USE_TSC) || defined(USE_TSC_FENCE) || defined(USE_TSC_NATIVE)
             tsc_start(&ns0);
 
 #else
@@ -387,11 +483,57 @@ main(int argc, char **argv) {
 #endif
 
 #endif
+
+#endif
             for (uint64_t k = 1; k < narr-1; k ++) {
                 w[j][k] = Di[j][k] * p[j][k]  \
                           - ry * (Ky[j+1][k] * p[j+1][k] + Ky[j][k] * p[j-1][k]) \
                           - rx * (Kx[j][k+1] * p[j][k+1] + Kx[j][k] * p[j][k-1]);
             }
+
+#ifdef STAGE_TF
+#ifdef TIMING
+
+// Timing.
+#ifdef USE_PAPI
+            ns0 = PAPI_get_real_nsec();
+
+#elif USE_PAPIX6
+            ns0 = PAPI_get_real_nsec();
+            PAPI_read(eventset, ev_vals_0);
+
+#elif USE_CGT
+            clock_gettime(CLOCK_MONOTONIC, &tv);
+            ns0 = tv.tv_sec * 1e9 + tv.tv_nsec;
+
+#elif USE_WTIME
+            ns0 = (uint64_t)(MPI_Wtime() * 1e9);
+
+#elif USE_CNTVCT
+            ns0 = cntvct_to_ns(read_cntvct());
+
+#elif USE_CNTVCTO
+            ns0 = cntvct_to_ns(read_cntvcto_start());
+
+#elif USE_LIKWID
+            LIKWID_MARKER_START("vkern"); 
+
+#elif defined(USE_TSC) || defined(USE_TSC_FENCE) || defined(USE_TSC_NATIVE)
+            tsc_start(&ns0);
+
+#else
+            _read_ns (ns0);
+            _mfence;
+
+#endif
+
+#endif
+            register uint64_t rb = rb_step;
+            register uint64_t ra = nsamp * rb * 2;
+            register uint64_t lower = ra_lower_boundary;
+            ra_res += sub_loop(ra, rb, lower);
+#endif
+
 #ifdef TIMING
 
 #ifdef USE_PAPI
@@ -437,15 +579,14 @@ main(int argc, char **argv) {
             p_ns[it*narr+j] = ns1 - ns0;
             ns0 = ns1;
 
-#elif USE_TSC
+#elif defined(USE_TSC) || defined(USE_TSC_FENCE) || defined(USE_TSC_NATIVE)
             tsc_stop(&ns1);
-            p_ns[it*narr+j] = ns1 - ns0;
-            p_ns[it*narr+j] = (uint64_t)((double)(ns1 - ns0) / tsc_ns);
+            p_ns[it*narr+j] = (uint64_t)((double)(ns1 - ns0) * tsc_ns);
 
 #else
             _read_ns (ns1);
             _mfence;
-            p_ns[it*narr+j] = (uint64_t)((double)(ns1 - ns0) / tsc_ns);
+            p_ns[it*narr+j] = (uint64_t)((double)(ns1 - ns0) * tsc_ns);
 #endif
 
 #endif
@@ -497,7 +638,13 @@ main(int argc, char **argv) {
 #elif USE_LIKWID
     sprintf(fname, "tl_f90_cg_calc_w_likwid_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
-#elif USE_TSC
+#elif defined(USE_TSC_FENCE)
+    sprintf(fname, "tl_f90_cg_calc_w_tsc_fence_time_%d_%s.csv", myrank, myhost);
+    FILE *fp = fopen(fname, "w");
+#elif defined(USE_TSC_NATIVE)
+    sprintf(fname, "tl_f90_cg_calc_w_tsc_native_time_%d_%s.csv", myrank, myhost);
+    FILE *fp = fopen(fname, "w");
+#elif defined(USE_TSC)
     sprintf(fname, "tl_f90_cg_calc_w_tsc_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #else
@@ -507,7 +654,11 @@ main(int argc, char **argv) {
 
     for (int it = NPASS; it < ntest; it ++) {
         for (size_t j = 1; j < narr-1; j ++) {
+#ifndef STAGE_TF
             fprintf(fp, "%d,%lu", myrank, p_ns[it*narr+j]);
+#else
+            fprintf(fp, "%d,%lu,%lu", myrank, nsamp, p_ns[it*narr+j]);
+#endif
 
 #if defined(USE_LIKWID) || defined(USE_PAPIX6)
             for (int iev = 0; iev < nev; iev ++) {
@@ -529,7 +680,7 @@ main(int argc, char **argv) {
 #endif
 
     if (myrank == 0) {
-        printf("Done. %f\n", pw);
+        printf("Done. %f %lu\n", pw, ra_res);
     }
 
     for (size_t i = 0; i < narr; i ++) {
