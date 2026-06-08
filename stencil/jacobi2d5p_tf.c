@@ -261,6 +261,9 @@ main(int argc, char **argv) {
 
 #ifdef TIMING
     uint64_t *p_ns, ns0 = 0, ns1 = 0;
+#if defined(USE_PAPI) || defined(USE_TSC)
+    uint64_t *p_cycles, cycle0 = 0, cycle1 = 0;
+#endif
 
 #ifdef USE_PAPI
     // Init PAPI
@@ -314,6 +317,9 @@ main(int argc, char **argv) {
 #endif
 
     p_ns = (uint64_t *)malloc(ntest * narr * sizeof(uint64_t));
+#if defined(USE_PAPI) || defined(USE_TSC)
+    p_cycles = (uint64_t *)malloc(ntest * narr * sizeof(uint64_t));
+#endif
 #endif
 
     for (uint64_t i = 0; i < narr; i ++) {
@@ -350,6 +356,7 @@ main(int argc, char **argv) {
 // Timing.
 #ifdef USE_PAPI
             ns0 = PAPI_get_real_nsec();
+            cycle0 = (uint64_t)PAPI_get_real_cyc();
 
 #elif USE_PAPIX6
             ns0 = PAPI_get_real_nsec();
@@ -372,6 +379,7 @@ main(int argc, char **argv) {
 
 #elif USE_TSC
             tsc_start(&ns0);
+            cycle0 = ns0;
 
 #else
             _read_ns (ns0);
@@ -388,6 +396,8 @@ main(int argc, char **argv) {
 #ifdef USE_PAPI
             ns1 = PAPI_get_real_nsec();
             p_ns[it*narr+j] = ns1 - ns0;
+            cycle1 = (uint64_t)PAPI_get_real_cyc();
+            p_cycles[it*narr+j] = cycle1 - cycle0;
 
 #elif USE_PAPIX6
             ns1 = PAPI_get_real_nsec();
@@ -430,6 +440,7 @@ main(int argc, char **argv) {
 
 #elif USE_TSC
             tsc_stop(&ns1);
+            p_cycles[it*narr+j] = ns1 - cycle0;
             p_ns[it*narr+j] = (uint64_t)((double)(ns1 - ns0) / tsc_ns);
 
 #else
@@ -498,6 +509,9 @@ main(int argc, char **argv) {
                 fprintf(fp, ",%ld", p_ev[it*narr*nev+j*nev+iev]);
             }
 #endif
+#if defined(USE_PAPI) || defined(USE_TSC)
+            fprintf(fp, ",%lu", p_cycles[it*narr+j]);
+#endif
             fprintf(fp, "\n");
         }
     }
@@ -508,6 +522,9 @@ main(int argc, char **argv) {
 
 #if defined(USE_LIKWID) || defined(USE_PAPIX6)
     free(p_ev);
+#endif
+#if defined(USE_PAPI) || defined(USE_TSC)
+    free(p_cycles);
 #endif
 
 #endif

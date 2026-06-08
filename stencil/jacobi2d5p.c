@@ -8,7 +8,9 @@
 #include <sched.h>
 #include "mpi.h"
 
+#if defined(__x86_64__)
 #include <x86intrin.h>
+#endif
 
 #ifdef TIMING
 #if defined(USE_PAPI) || defined(USE_PAPIX6)
@@ -74,45 +76,47 @@
 #define NS_PER_TICK  1
 
 #if defined(__x86_64__)
-// void
-// tsc_start(uint64_t *cycle) {
-//     unsigned ch, cl;
-
-//     asm volatile (  "CPUID" "\n\t"
-//                     "RDTSC" "\n\t"
-//                     "mov %%edx, %0" "\n\t"
-//                     "mov %%eax, %1" "\n\t"
-//                     : "=r" (ch), "=r" (cl)
-//                     :
-//                     : "%rax", "%rbx", "%rcx", "%rdx");
-//     *cycle = ( ((uint64_t)ch << 32) | cl );
-// }
-
-// void
-// tsc_stop(uint64_t *cycle) {
-//     unsigned ch, cl;
-
-//     asm volatile (  "RDTSCP" "\n\t"
-//                     "mov %%edx, %0" "\n\t"
-//                     "mov %%eax, %1" "\n\t"
-//                     "CPUID" "\n\t"
-//                     : "=r" (ch), "=r" (cl)
-//                     :
-//                     : "%rax", "%rbx", "%rcx", "%rdx");
-
-//     *cycle = ( ((uint64_t)ch << 32) | cl );
-// }
-
 static inline void tsc_start(uint64_t *cycle){
+#if defined(USE_TSC)
+    unsigned ch, cl;
+
+    asm volatile (  "CPUID" "\n\t"
+                    "RDTSC" "\n\t"
+                    "mov %%edx, %0" "\n\t"
+                    "mov %%eax, %1" "\n\t"
+                    : "=r" (ch), "=r" (cl)
+                    :
+                    : "%rax", "%rbx", "%rcx", "%rdx");
+    *cycle = ( ((uint64_t)ch << 32) | cl );
+#elif defined(USE_TSC_FENCE)
     _mm_lfence();
     *cycle = __rdtsc();
+#else
+    *cycle = __rdtsc();
+#endif
     return ;
 }
 
 static inline void tsc_stop(uint64_t *cycle){
+#if defined(USE_TSC)
+    unsigned ch, cl;
+
+    asm volatile (  "RDTSCP" "\n\t"
+                    "mov %%edx, %0" "\n\t"
+                    "mov %%eax, %1" "\n\t"
+                    "CPUID" "\n\t"
+                    : "=r" (ch), "=r" (cl)
+                    :
+                    : "%rax", "%rbx", "%rcx", "%rdx");
+
+    *cycle = ( ((uint64_t)ch << 32) | cl );
+#else
     unsigned aux;
     *cycle = __rdtscp(&aux);
+#if defined(USE_TSC_FENCE)
     _mm_lfence();
+#endif
+#endif
     return ;
 }
 
@@ -206,6 +210,45 @@ fill_random(double *arr, size_t size) {
     return;
 }
 
+
+static inline uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
+#if defined(__x86_64__)
+    __asm__ __volatile__(
+        "1:\n\t"
+        "subq %[rb], %[ra]\n\t"
+        "subq %[rb], %[ra]\n\t"
+        "cmpq %[lower], %[ra]\n\t"
+        "ja 1b\n\t"
+        : [ra] "+&r"(ra)
+        : [rb] "r"(rb),
+        [lower] "r"(lower)
+        : "cc"
+    );
+    return ra;
+
+#elif defined(__aarch64__)
+    __asm__ __volatile__(
+        "1:\n\t"
+        "sub %[ra], %[ra], %[rb]\n\t"
+        "sub %[ra], %[ra], %[rb]\n\t"
+        "cmp %[ra], %[lower]\n\t"
+        "b.hi 1b\n\t"
+        : [ra] "+&r"(ra)
+        : [rb] "r"(rb),
+        [lower] "r"(lower)
+        : "cc"
+    );
+    return ra;
+
+#else
+    do {
+        ra -= rb;
+        ra -= rb;
+    } while (ra > lower);
+    return ra;
+#endif
+}
+
 int
 main(int argc, char **argv) {
     uint64_t ntest;
@@ -217,6 +260,7 @@ main(int argc, char **argv) {
     uint64_t volatile nsec_st, nsec_en; // For warmup
     int myrank, nrank, errid;
     double tsc_ns;
+    uint64_t ra_lower_boundary, rb_step;
 
     uint64_t volatile c, nsamp;
 
@@ -229,11 +273,20 @@ main(int argc, char **argv) {
     if (argc >= 3) {
         nsamp = (uint64_t)atoll(argv[2]);
         printf("NSAMP = %lu\n", nsamp);
-        c = 1;
     } else {
         printf("NSAMP IS MISSING\n");
         return -1;
     }
+
+    if (argc >= 5) {
+        ra_lower_boundary = (uint64_t)atoll(argv[3]);
+        rb_step = (uint64_t)atoll(argv[4]);
+        printf("ra_lower_boundary = %lu, rb_step = %lu\n", ra_lower_boundary, rb_step);
+    } else {
+        printf("ra boundary missing!\n");
+        return -1;
+    }
+
 
 #if defined(__x86_64__)
     tsc_ns = calibrate_ns_per_tsc();
@@ -303,6 +356,9 @@ main(int argc, char **argv) {
 
 #ifdef TIMING
     uint64_t *p_ns, ns0 = 0, ns1 = 0;
+// #if defined(USE_PAPI) || defined(USE_TSC)
+//     uint64_t *p_cycles, cycle0 = 0, cycle1 = 0;
+// #endif
 
 #ifdef USE_PAPI
     // Init PAPI
@@ -356,6 +412,9 @@ main(int argc, char **argv) {
 #endif
 
     p_ns = (uint64_t *)malloc(ntest * narr * sizeof(uint64_t));
+// #if defined(USE_PAPI) || defined(USE_TSC)
+//     p_cycles = (uint64_t *)malloc(ntest * narr * sizeof(uint64_t));
+// #endif
 #endif
 
     for (uint64_t i = 0; i < narr; i ++) {
@@ -388,6 +447,7 @@ main(int argc, char **argv) {
 // Timing.
 #ifdef USE_PAPI
             ns0 = PAPI_get_real_nsec();
+            // cycle0 = (uint64_t)PAPI_get_real_cyc();
 
 #elif USE_PAPIX6
             ns0 = PAPI_get_real_nsec();
@@ -410,8 +470,9 @@ main(int argc, char **argv) {
             //ns0 = 0;
             LIKWID_MARKER_START("vkern"); 
 
-#elif USE_TSC
+#elif defined(USE_TSC) || defined(USE_TSC_FENCE) || defined(USE_TSC_NATIVE)
             tsc_start(&ns0);
+            // cycle0 = ns0;
 
 #else
             _read_ns (ns0);
@@ -433,6 +494,7 @@ main(int argc, char **argv) {
 // Timing.
 #ifdef USE_PAPI
             ns0 = PAPI_get_real_nsec();
+            // cycle0 = (uint64_t)PAPI_get_real_cyc();
 
 #elif USE_PAPIX6
             ns0 = PAPI_get_real_nsec();
@@ -455,8 +517,9 @@ main(int argc, char **argv) {
             //ns0 = 0;
             LIKWID_MARKER_START("vkern"); 
 
-#elif USE_TSC
+#elif defined(USE_TSC) || defined(USE_TSC_FENCE) || defined(USE_TSC_NATIVE)
             tsc_start(&ns0);
+            // cycle0 = ns0;
 
 #else
             _read_ns (ns0);
@@ -466,37 +529,38 @@ main(int argc, char **argv) {
 
 #endif
 
-            register uint64_t ra = nsamp * 4;
-            while (ra > 0) {
-                // asm volatile(
-                //     "1:\n\t"
-                //     "sub $1, %[ra]\n\t"
-                //     "sub $1, %[ra]\n\t"
-                //     "jnz 1b\n\t"
-                //     : [ra] "+r"(ra)
-                //     :
-                //     : "cc"
-                // );
-  
-                __asm__ __volatile__(
-                    "1:\n\t"
-                    "sub $1, %0\n\t"
-                    "sub $1, %0\n\t"
-                    "sub $1, %0\n\t"
-                    "sub $1, %0\n\t"
-                    "jnz 1b\n\t"
-                    "2:\n\t"
-                    : "+r"(ra)
-                    :
-                    : "cc");
-                // ra -= 1;
-            }
+            register uint64_t rb = rb_step;            
+            register uint64_t ra = nsamp * rb * 2;
+            register uint64_t lower = ra_lower_boundary;
+            
+            // while (ra > lower) {
+            //     // asm volatile(
+            //     //     "1:\n\t"
+            //     //     "sub $1, %[ra]\n\t"
+            //     //     "sub $1, %[ra]\n\t"
+            //     //     "jnz 1b\n\t"
+            //     //     : [ra] "+r"(ra)
+            //     //     :
+            //     //     : "cc"
+            //     // );
+            //     ra -= rb;
+            // }
+
+            // __asm__ __volatile__(
+            //     "1:\n\t"
+            //     "subq %[rb], %[ra]\n\t"
+            //     "subq %[rb], %[ra]\n\t"
+            //     "cmpq %[lower], %[ra]\n\t"
+            //     "ja 1b\n\t"
+            //     : [ra] "+&r"(ra)
+            //     : [rb] "r"(rb),
+            //     [lower] "r"(lower)
+            //     : "cc"
+            // );
+
+            sub_loop(ra, rb, lower);
+
 #endif
-
-
-
-
-
 
 
 #ifdef TIMING
@@ -504,6 +568,8 @@ main(int argc, char **argv) {
 #ifdef USE_PAPI
             ns1 = PAPI_get_real_nsec();
             p_ns[it*narr+j] = (uint64_t)(ns1 - ns0);
+            // cycle1 = (uint64_t)PAPI_get_real_cyc();
+            // p_cycles[it*narr+j] = cycle1 - cycle0;
 
 #elif USE_PAPIX6
             ns1 = PAPI_get_real_nsec();
@@ -544,15 +610,15 @@ main(int argc, char **argv) {
             p_ns[it*narr+j] = ns1 - ns0;
             ns0 = ns1;
 
-#elif USE_TSC
+#elif defined(USE_TSC) || defined(USE_TSC_FENCE) || defined(USE_TSC_NATIVE)
             tsc_stop(&ns1);
-            p_ns[it*narr+j] = ns1 - ns0;
-            p_ns[it*narr+j] = (uint64_t)((double)(ns1 - ns0) / tsc_ns);
+            // p_cycles[it*narr+j] = ns1 - cycle0;
+            p_ns[it*narr+j] = (uint64_t)((double)(ns1 - ns0) * tsc_ns);
 
 #else
             _read_ns (ns1);
             _mfence;
-            p_ns[it*narr+j] = (uint64_t)((double)(ns1 - ns0) / tsc_ns);
+            p_ns[it*narr+j] = (uint64_t)((double)(ns1 - ns0) * tsc_ns);
 #endif
 
 #endif
@@ -602,7 +668,13 @@ main(int argc, char **argv) {
 #elif USE_LIKWID
     sprintf(fname, "jacobi2d5p_likwid_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
-#elif USE_TSC
+#elif defined(USE_TSC_FENCE)
+    sprintf(fname, "jacobi2d5p_tsc_fence_time_%d_%s.csv", myrank, myhost);
+    FILE *fp = fopen(fname, "w");
+#elif defined(USE_TSC_NATIVE)
+    sprintf(fname, "jacobi2d5p_tsc_native_time_%d_%s.csv", myrank, myhost);
+    FILE *fp = fopen(fname, "w");
+#elif defined(USE_TSC)
     sprintf(fname, "jacobi2d5p_tsc_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #else
@@ -623,6 +695,9 @@ main(int argc, char **argv) {
                 fprintf(fp, ",%ld", p_ev[it*narr*nev+j*nev+iev]);
             }
 #endif
+// #if defined(STAGE_TF) && (defined(USE_PAPI) || defined(USE_TSC))
+//             fprintf(fp, ",%lu", p_cycles[it*narr+j]);
+// #endif
             fprintf(fp, "\n");
         }
     }
@@ -634,6 +709,9 @@ main(int argc, char **argv) {
 #if defined(USE_LIKWID) || defined(USE_PAPIX6)
     free(p_ev);
 #endif
+// #if defined(USE_PAPI) || defined(USE_TSC)
+//     free(p_cycles);
+// #endif
 
 #endif
 

@@ -37,10 +37,13 @@ mkdir -p "$DATA_FOLDER"
 
 KERNEL_LIST=${KERNEL_LIST:-"jacobi2d5p "}
 NP_LIST=${NP_LIST:-"64"}
-# TIMER_LIST=${TIMER_LIST:-"cgt papi papix6 wtime"}
-TIMER_LIST=${TIMER_LIST:-"cgt papi"}
-SIZE_LIST=${SIZE_LIST:-"512"}
+TIMER_LIST=${TIMER_LIST:-"cgt papi papix6 wtime"}
+# TIMER_LIST=${TIMER_LIST:-"cgt papi"}
+# SIZE_LIST=${SIZE_LIST:-"512"}
 # SIZE_LIST=${SIZE_LIST:-"1024"}
+# SIZE_LIST=${SIZE_LIST:-"64 128 256 512 1024 2048"}
+SIZE_LIST=${SIZE_LIST:-"64"}
+
 
 case $HOSTNAME in
     "camd9554n2")
@@ -79,7 +82,12 @@ fi
 
 initialize "$CPU_FREQ"
 CPU_FREQ_KHZ_REAL=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq)
-NSPV=$(echo "scale=12; 1000000 / $CPU_FREQ_KHZ_REAL * 2" |bc)
+
+
+NSPV=$(echo "scale=12; 1000000 / $CPU_FREQ_KHZ_REAL * 2" |bc)  # double substraction
+# NSPV=$(echo "scale=12; 1000000 / $CPU_FREQ_KHZ_REAL" |bc) # single substraction
+
+
 # case "${NSPV}" in
 #     .*) NSPV="0${NSPV}" ;;
 # esac
@@ -91,10 +99,10 @@ echo "NSPV: ${NSPV} ns per cycle"
 # Adapte
 case $ARCH in 
     "x86_64")
-        TIMER_LIST="$TIMER_LIST tsc tsc_fence tsc_native likwid"
+        TIMER_LIST="$TIMER_LIST tsc tsc_native"
         ;;
     "aarch64")
-        TIMER_LIST="$TIMER_LIST cntvct cntvcto"
+        TIMER_LIST="$TIMER_LIST cntvct"
         ;;
     *)
         echo "Unsupported architecture: $ARCH"
@@ -107,6 +115,7 @@ echo $TIMER_LIST
 
 rm -f *.x
 
+mpicc -O2 -Wall -o "${FILTER_ROOT}/filt.x" "${FILTER_ROOT}/filt.c" 
 for kernel in $KERNEL_LIST; do
     for timer in $TIMER_LIST; do
         timer_cflags="$BASE_CFLAGS"
@@ -120,8 +129,8 @@ for kernel in $KERNEL_LIST; do
             *)
                 ;;
         esac
-        mpicc -o "${kernel}_${timer}.x" "${kernel}.c" $timer_cflags -DTIMING "-DUSE_${timer^^}" -I"${OPENBLAS_HOME}/include" -L"${OPENBLAS_HOME}/lib" -lgsl -lopenblas
-        mpicc -o "${kernel}_${timer}_tf.x" "${kernel}.c" $timer_cflags -DSTAGE_TF -DTIMING "-DUSE_${timer^^}" -I"${OPENBLAS_HOME}/include" -L"${OPENBLAS_HOME}/lib" -lgsl -lopenblas
+        mpicc -o "${kernel}_${timer}.x" "${kernel}.c" $timer_cflags -DTIMING "-DUSE_${timer^^}" -I"${OPENBLAS_HOME}/include" -L"${OPENBLAS_HOME}/lib"
+        mpicc -o "${kernel}_${timer}_tf.x" "${kernel}.c" $timer_cflags -DSTAGE_TF -DTIMING "-DUSE_${timer^^}" -I"${OPENBLAS_HOME}/include" -L"${OPENBLAS_HOME}/lib"
 
         for np in $NP_LIST; do
             for size in $SIZE_LIST; do
