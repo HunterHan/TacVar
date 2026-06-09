@@ -14,7 +14,11 @@ def read_csvs(dir_path, scol, mcol, nsps):
         df = pd.read_csv(dir_path + '/' + files[i], header=None)
         dfs.append(df)
     df = pd.concat(dfs, ignore_index=True)
-    arr = df[mcol].to_numpy() - df[scol].to_numpy() * nsps
+    nsamp = pd.to_numeric(df[scol], errors="raise").to_numpy(dtype=float)
+    measured = pd.to_numeric(df[mcol], errors="raise").to_numpy(dtype=float)
+    theoretical = nsamp * nsps
+    print(f"Theoretical Time Cost: {theoretical} ns")
+    arr = measured - theoretical
     np.savetxt('./tf.csv', arr, fmt='%d' , delimiter='\n')
 
 

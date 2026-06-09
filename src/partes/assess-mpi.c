@@ -155,6 +155,12 @@ main(int argc, char *argv[])
     _ptm_exit_on_error(err, "exp_fit_gpns");
     pt_mpi_printf(myrank, nrank, "Gauge info: gpns=%f\n", gauge_info.gpns);
 
+    if (myrank == 0) {
+        printf("Estimated gauge time per operation: %f ns\n", gauge_info.gpns);
+        fflush(stdout);
+    }
+
+    
     if (!(gauge_info.gpns > 0.0)) {
         fprintf(stderr, "[ERROR][Rank %d] Invalid gpns=%f; abort to avoid hang.\n",
             myrank, gauge_info.gpns);

@@ -29,7 +29,7 @@ BINW_MIN=10
 P_LOW=0.01
 NSAMP=${NSAMP:-1000}
 # NSAMP=100000
-NSAMP_RATIO_LIST=${NSAMP_RATIO_LIST:-"0.5 0.75 1.0"}
+NSAMP_RATIO_LIST=${NSAMP_RATIO_LIST:-"0.5 0.8"}
 
 ARCH=$(uname -m)
 HOSTNAME=$(hostname)
@@ -46,8 +46,8 @@ TIMER_LIST=${TIMER_LIST:-"cgt papi papix6 wtime"}
 # TIMER_LIST=${TIMER_LIST:-"cgt papi"}
 # SIZE_LIST=${SIZE_LIST:-"512"}
 # SIZE_LIST=${SIZE_LIST:-"1024"}
-# SIZE_LIST=${SIZE_LIST:-"64 128 256 512 1024 2048"}
-SIZE_LIST=${SIZE_LIST:-"512"}
+SIZE_LIST=${SIZE_LIST:-"64 128 256 512 1024 2048"}
+# SIZE_LIST=${SIZE_LIST:-"512"}
 
 
 case $HOSTNAME in
@@ -118,7 +118,7 @@ case $ARCH in
         TIMER_LIST="$TIMER_LIST tsc tsc_native"
         ;;
     "aarch64")
-        TIMER_LIST="$TIMER_LIST cntvct"
+        TIMER_LIST="$TIMER_LIST cntvct cntvcto"
         ;;
     *)
         echo "Unsupported architecture: $ARCH"
@@ -132,7 +132,7 @@ echo $TIMER_LIST
 rm -f *.x
 
 # mpicc -O2 -Wall -o "${FILTER_ROOT}/filt.x" "${FILTER_ROOT}/filt.c"
-mpicc -O2 -Wall -o "${FILTER_ROOT}/filt.x" "${FILTER_ROOT}/filt_conservative.0608.c"
+mpicc -O2 -Wall -o "${FILTER_ROOT}/filt.x" "${FILTER_ROOT}/filt_v2.0608.c"
 for kernel in $KERNEL_LIST; do
     for timer in $TIMER_LIST; do
         timer_cflags="$BASE_CFLAGS"

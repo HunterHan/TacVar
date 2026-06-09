@@ -120,7 +120,10 @@ main(int argc, char *argv[])
     err = exp_fit_gpns( 100, 100000LL, &pttimers, &ptgauges, &gauge_info.gpns);
     _ptm_exit_on_error(err, "exp_fit_gpns");
     pt_mpi_printf(myrank, nrank, "Gauge info: gpns=%f\n", gauge_info.gpns);
-
+    if (myrank == 0) {
+        printf("Estimated gauge time per operation: %f ns\n", gauge_info.gpns);
+        fflush(stdout);
+    }
     // Hard-stop on invalid gpns: negative/zero gpns can make ngs negative, which then
     // turns into a huge uint64_t loop counter inside gauge kernels (apparent hang).
     if (!(gauge_info.gpns > 0.0)) {

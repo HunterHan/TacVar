@@ -30,7 +30,7 @@
 
 // Number of tests for each interval
 #ifndef NTEST
-#define NTEST 100
+#define NTEST 10
 #endif
 
 #ifndef NARR

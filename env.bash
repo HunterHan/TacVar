@@ -6,8 +6,8 @@
 
 # Conda is optional. Do not require it on compute nodes unless USE_CONDA=1.
 
-PROJ_ROOT=$(realpath $(pwd))
-DATA_ROOT=$(realpath ~/code/data/)
+export PROJ_ROOT=$(realpath $(pwd))
+export DATA_ROOT=$(realpath ~/code/data/)
 
 _pt_prepend_path() {
   local d="$1"
@@ -121,4 +121,16 @@ if [[ "${PT_SHOW_DEPS:-0}" == "1" ]]; then
   command -v mpicc >/dev/null 2>&1 && mpicc --version | head -n 1 || true
   command -v papi_version >/dev/null 2>&1 && papi_version || true
   command -v likwid-perfctr >/dev/null 2>&1 && likwid-perfctr -v || true
+fi
+# TacVar GSL 2.7.1
+GSL_HOME="$HOME/opt/gsl-2.7.1"
+if [ -d "$GSL_HOME" ]; then
+    export GSL_HOME
+    export PATH="$GSL_HOME/bin:$PATH"
+    export LD_LIBRARY_PATH="$GSL_HOME/lib:${LD_LIBRARY_PATH:-}"
+    export LIBRARY_PATH="$GSL_HOME/lib:${LIBRARY_PATH:-}"
+    export CPATH="$GSL_HOME/include:${CPATH:-}"
+    export PKG_CONFIG_PATH="$GSL_HOME/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+    export GSL_CFLAGS="$($GSL_HOME/bin/gsl-config --cflags)"
+    export GSL_LIBS="$($GSL_HOME/bin/gsl-config --libs)"
 fi
