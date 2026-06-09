@@ -480,6 +480,12 @@ main(int argc, char **argv) {
 
         for (uint64_t j = 1; j < narr-1; j ++) {
 
+#if defined(USE_PREWARM) && !defined(STAGE_TF)
+            for (uint64_t k = 1; k < narr-1; k ++) {
+                y[j][k] = a * x[j][k] + b * (x[j-1][k] + x[j+1][k] + x[j][k-1] + x[j][k+1]);
+            }
+#endif
+
 #ifndef STAGE_TF
 #ifdef TIMING
 

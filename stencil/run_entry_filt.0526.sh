@@ -21,6 +21,10 @@ trap cleanup EXIT
 
 CFLAGS="-O2 -Wall -g"
 BASE_CFLAGS="$CFLAGS"
+PREWARM=${PREWARM:-0}
+if [ "$PREWARM" = "1" ]; then
+    BASE_CFLAGS="$BASE_CFLAGS -DUSE_PREWARM"
+fi
 
 # Meta
 FILTER_ROOT="${PROJ_ROOT}/src/filter/"
@@ -76,6 +80,7 @@ echo "KERNEL_LIST: $KERNEL_LIST"
 echo "NP_LIST: $NP_LIST"
 echo "TIMER_LIST: $TIMER_LIST"
 echo "SIZE_LIST: $SIZE_LIST"
+echo "PREWARM: $PREWARM"
 
 # Check ENVs
 : "${PAPI_HOME:?PAPI_HOME is not set}"
