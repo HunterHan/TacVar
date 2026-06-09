@@ -209,7 +209,6 @@ static inline uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
     __asm__ __volatile__(
         "1:\n\t"
         "subq %[rb], %[ra]\n\t"
-        "subq %[rb], %[ra]\n\t"
         "cmpq %[lower], %[ra]\n\t"
         "ja 1b\n\t"
         : [ra] "+&r"(ra)
@@ -222,7 +221,6 @@ static inline uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
     __asm__ __volatile__(
         "1:\n\t"
         "sub %[ra], %[ra], %[rb]\n\t"
-        "sub %[ra], %[ra], %[rb]\n\t"
         "cmp %[ra], %[lower]\n\t"
         "b.hi 1b\n\t"
         : [ra] "+&r"(ra)
@@ -233,7 +231,6 @@ static inline uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
     return ra;
 #else
     do {
-        ra -= rb;
         ra -= rb;
     } while (ra > lower);
     return ra;
@@ -260,22 +257,24 @@ main(int argc, char **argv) {
         narr = NARR;
     }
 
-    if (argc >= 3) {
-        nsamp = (uint64_t)atoll(argv[2]);
-        printf("NSAMP = %lu\n", nsamp);
-    } else {
-        printf("NSAMP IS MISSING\n");
-        return -1;
-    }
-
-    if (argc >= 5) {
-        ra_lower_boundary = (uint64_t)atoll(argv[3]);
-        rb_step = (uint64_t)atoll(argv[4]);
+    if (argc >= 4) {
+        ra_lower_boundary = (uint64_t)atoll(argv[2]);
+        rb_step = (uint64_t)atoll(argv[3]);
         printf("ra_lower_boundary = %lu, rb_step = %lu\n", ra_lower_boundary, rb_step);
     } else {
         printf("ra boundary missing!\n");
         return -1;
     }
+
+#ifdef STAGE_TF
+    if (argc >= 5) {
+        nsamp = (uint64_t)atoll(argv[4]);
+        printf("NSAMP = %lu\n", nsamp);
+    } else {
+        printf("NSAMP IS MISSING\n");
+        return -1;
+    }
+#endif
 
     w = (double **)malloc(narr * sizeof(double*));
     for (size_t i = 0; i < narr; i ++) {
@@ -529,7 +528,7 @@ main(int argc, char **argv) {
 
 #endif
             register uint64_t rb = rb_step;
-            register uint64_t ra = nsamp * rb * 2;
+            register uint64_t ra = nsamp * rb;
             register uint64_t lower = ra_lower_boundary;
             ra_res += sub_loop(ra, rb, lower);
 #endif
