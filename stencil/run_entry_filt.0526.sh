@@ -4,15 +4,27 @@ INSITU="INSITU_SUB_ASM"
 : "${PROJ_ROOT:?PROJ_ROOT is not set! Please source env.bash !}"
 
 initialize(){
-    sudo sh -c 'echo 0 > /sys/devices/system/cpu/cpufreq/boost'
     local cpu_freq=$1
+    if [ -e /sys/devices/system/cpu/cpufreq/boost ]; then
+        echo 0 | sudo tee /sys/devices/system/cpu/cpufreq/boost
+    fi
+    if [ -e /sys/devices/system/cpu/intel_pstate/no_turbo ]; then
+        echo 1 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo
+    fi
     sudo cpupower frequency-set -u "${cpu_freq}GHz" -d "${cpu_freq}GHz" -g performance
     sudo cpupower frequency-info
+    [ -r /sys/devices/system/cpu/intel_pstate/no_turbo ] && echo "intel_no_turbo=$(cat /sys/devices/system/cpu/intel_pstate/no_turbo)"
+    [ -r /sys/devices/system/cpu/cpufreq/boost ] && echo "cpufreq_boost=$(cat /sys/devices/system/cpu/cpufreq/boost)"
 }
 
 cleanup(){
     sudo cpupower frequency-set -g schedutil
-    sudo sh -c 'echo 1 > /sys/devices/system/cpu/cpufreq/boost'
+    if [ -e /sys/devices/system/cpu/intel_pstate/no_turbo ]; then
+        echo 0 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo
+    fi
+    if [ -e /sys/devices/system/cpu/cpufreq/boost ]; then
+        echo 1 | sudo tee /sys/devices/system/cpu/cpufreq/boost
+    fi
 }
 
 trap 'echo "ERR"' ERR
@@ -28,10 +40,19 @@ fi
 
 # Meta
 FILTER_ROOT="${PROJ_ROOT}/src/filter/"
-PYTHON=${PYTHON:-python3}
+if [ -z "${PYTHON:-}" ]; then
+    if [ -x "$HOME/miniconda3/bin/python" ]; then
+        PYTHON="$HOME/miniconda3/bin/python"
+    elif [ -x "$HOME/miniconda/bin/python" ]; then
+        PYTHON="$HOME/miniconda/bin/python"
+    else
+        PYTHON=python3
+    fi
+fi
 BINW_MIN=10
 P_LOW=0.01
 NSAMP=${NSAMP:-1000}
+NSAMP_TF_MIN=${NSAMP_TF_MIN:-1}
 # NSAMP=100000
 NSAMP_RATIO_LIST=${NSAMP_RATIO_LIST:-"0.5 0.8"}
 
@@ -177,11 +198,19 @@ for kernel in $KERNEL_LIST; do
                 fi
 
                 "${run_cmd[@]}" "./${kernel}_${timer}.x" "${size}" 0 1
+                sleep 1
                 mv ./*.csv "$tm_dir/"
 
 
                 for nsamp_ratio in ${NSAMP_RATIO_LIST}; do
-                    nsamp_tf=$("${PYTHON}" "${FILTER_ROOT}/get_quantile.py" "${tm_dir}" 1 "${nsamp_ratio}" "${NSPV}")
+                    nsamp_tf=$("${PYTHON}" "${FILTER_ROOT}/get_quantile.py" "${tm_dir}" 1 "${nsamp_ratio}" "${NSPV}") || exit 1
+                    if ! [[ "$nsamp_tf" =~ ^[0-9]+$ ]]; then
+                        echo "Invalid nsamp_tf: ${nsamp_tf}"
+                        exit 1
+                    fi
+                    if [ "$nsamp_tf" -lt "$NSAMP_TF_MIN" ]; then
+                        nsamp_tf="$NSAMP_TF_MIN"
+                    fi
 
                     te_dir="${tm_dir}_nsampRatio${nsamp_ratio}_nsamp${nsamp_tf}_tf"
                     res_dir="${tm_dir}_nsampRatio${nsamp_ratio}_nsamp${nsamp_tf}_filt"
@@ -191,6 +220,7 @@ for kernel in $KERNEL_LIST; do
                     mkdir -p "$te_dir" "$res_dir"
 
                     "${run_cmd[@]}" "./${kernel}_${timer}_tf.x" "${size}" 0 1 "${nsamp_tf}" 
+                    sleep 1
                     mv ./*.csv "$te_dir/"
 
                     if [ "$timer" = "likwid" ]; then
