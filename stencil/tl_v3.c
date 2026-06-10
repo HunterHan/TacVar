@@ -6,11 +6,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sched.h>
-#include "mpi.h"
-
 #if defined(__x86_64__)
 #include <x86intrin.h>
 #endif
+#include "mpi.h"
 
 #ifdef TIMING
 #if defined(USE_PAPI) || defined(USE_PAPIX6)
@@ -75,7 +74,7 @@
 
 #define NS_PER_TICK  1
 
-#if defined(__x86_64__)
+#if defined(__x86_64__) && (defined(USE_TSC) || defined(USE_TSC_FENCE) || defined(USE_TSC_NATIVE))
 static inline void tsc_start(uint64_t *cycle){
 #if defined(USE_TSC)
     unsigned ch, cl;
@@ -94,7 +93,6 @@ static inline void tsc_start(uint64_t *cycle){
 #else
     *cycle = __rdtsc();
 #endif
-    return ;
 }
 
 static inline void tsc_stop(uint64_t *cycle){
@@ -117,7 +115,6 @@ static inline void tsc_stop(uint64_t *cycle){
     _mm_lfence();
 #endif
 #endif
-    return ;
 }
 
 static inline uint64_t nsec_now(void) {
@@ -129,7 +126,7 @@ static inline uint64_t nsec_now(void) {
 static double calibrate_ns_per_tsc(void){
     struct timespec req = {
         .tv_sec = 0,
-        .tv_nsec = 200000000, // 200ms
+        .tv_nsec = 200000000,
     };
 
     uint64_t c0, c1;
@@ -141,10 +138,7 @@ static double calibrate_ns_per_tsc(void){
 
     return (double)(n1 - n0) / (double)(c1 - c0);
 }
-
 #endif
-
-
 
 #if defined(USE_CNTVCT) || defined(USE_CNTVCTO)
 static uint64_t g_cntfrq = 0;
@@ -219,11 +213,10 @@ __attribute__((noinline)) uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t l
         "ja 1b\n\t"
         : [ra] "+&r"(ra)
         : [rb] "r"(rb),
-        [lower] "r"(lower)
+          [lower] "r"(lower)
         : "cc"
     );
     return ra;
-
 #elif defined(__aarch64__)
     __asm__ __volatile__(
         "1:\n\t"
@@ -232,55 +225,12 @@ __attribute__((noinline)) uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t l
         "b.hi 1b\n\t"
         : [ra] "+&r"(ra)
         : [rb] "r"(rb),
-        [lower] "r"(lower)
+          [lower] "r"(lower)
         : "cc"
     );
     return ra;
-
 #else
     do {
-        ra -= rb;
-    } while (ra > lower);
-    return ra;
-#endif
-}
-
-
-
-
-
-static inline uint64_t dsub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
-#if defined(__x86_64__)
-    __asm__ __volatile__(
-        "1:\n\t"
-        "subq %[rb], %[ra]\n\t"
-        "subq %[rb], %[ra]\n\t"
-        "cmpq %[lower], %[ra]\n\t"
-        "ja 1b\n\t"
-        : [ra] "+&r"(ra)
-        : [rb] "r"(rb),
-        [lower] "r"(lower)
-        : "cc"
-    );
-    return ra;
-
-#elif defined(__aarch64__)
-    __asm__ __volatile__(
-        "1:\n\t"
-        "sub %[ra], %[ra], %[rb]\n\t"
-        "sub %[ra], %[ra], %[rb]\n\t"
-        "cmp %[ra], %[lower]\n\t"
-        "b.hi 1b\n\t"
-        : [ra] "+&r"(ra)
-        : [rb] "r"(rb),
-        [lower] "r"(lower)
-        : "cc"
-    );
-    return ra;
-
-#else
-    do {
-        ra -= rb;
         ra -= rb;
     } while (ra > lower);
     return ra;
@@ -291,16 +241,15 @@ int
 main(int argc, char **argv) {
     uint64_t ntest;
     /* Vars for Stencil */
-    double **x, **y;
-    double a = 0.21, b = 0.20;
+    double **w, **Di, **p, **Kx, **Ky;
+    double rx, ry, pw;
     uint64_t narr;
     struct timespec tv;
     uint64_t volatile nsec_st, nsec_en; // For warmup
     int myrank, nrank, errid;
-    double tsc_ns;
+    double tsc_ns = 1.0;
+    uint64_t nsamp;
     uint64_t ra_lower_boundary, rb_step;
-
-    uint64_t volatile c, nsamp;
 
     if (argc >= 2) {
         narr = (uint64_t)atoll(argv[1]);
@@ -327,23 +276,25 @@ main(int argc, char **argv) {
     }
 #endif
 
-#if defined(__x86_64__)
-    tsc_ns = calibrate_ns_per_tsc();
-    if (myrank == 0) {
-        printf("Calibrated TSC frequency: %f GHz\n", 1e0 / tsc_ns);
-    }
-
-#endif
-
-
-
-    x = (double **)malloc(narr * sizeof(double*));
-    y = (double **)malloc(narr * sizeof(double*));
+    w = (double **)malloc(narr * sizeof(double*));
     for (size_t i = 0; i < narr; i ++) {
-        x[i] = (double *)malloc(narr * sizeof(double));
+        w[i] = (double *)malloc(narr * sizeof(double));
     }
+    Di = (double **)malloc(narr * sizeof(double*));
     for (size_t i = 0; i < narr; i ++) {
-        y[i] = (double *)malloc(narr * sizeof(double));
+        Di[i] = (double *)malloc(narr * sizeof(double));
+    }
+    p = (double **)malloc(narr * sizeof(double*));
+    for (size_t i = 0; i < narr; i ++) {
+        p[i] = (double *)malloc(narr * sizeof(double));
+    }
+    Kx = (double **)malloc(narr * sizeof(double*));
+    for (size_t i = 0; i < narr; i ++) {
+        Kx[i] = (double *)malloc(narr * sizeof(double));
+    }
+    Ky = (double **)malloc(narr * sizeof(double*));
+    for (size_t i = 0; i < narr; i ++) {
+        Ky[i] = (double *)malloc(narr * sizeof(double));
     }
 
     ntest = NPASS + NTEST;
@@ -359,18 +310,31 @@ main(int argc, char **argv) {
 #endif
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
-    
+#if defined(__x86_64__) && (defined(USE_TSC) || defined(USE_TSC_FENCE) || defined(USE_TSC_NATIVE))
+    tsc_ns = calibrate_ns_per_tsc();
     if (myrank == 0) {
-        printf("A 2D 5-point Jacobi stencil scheme.\nNTEST=%lu, NPASS=%u, NARR=%lu \n", 
+        printf("Calibrated TSC frequency: %f GHz\n", 1e0 / tsc_ns);
+    }
+#endif
+
+    if (myrank == 0) {
+        printf("TeaLeaf cg_calc_w kernel.\nNTEST=%lu, NPASS=%u, NARR=%lu \n", 
                 ntest, NPASS, narr);
     }
 
     // Warm up
+    pw = 0;
     do {
         for (uint64_t i = 0; i < narr; i ++) {
-            fill_random(x[i], narr);
-            fill_random(y[i], narr);
+            fill_random(w[i], narr);
+            fill_random(Di[i], narr);
+            fill_random(p[i], narr);
+            fill_random(Kx[i], narr);
+            fill_random(Ky[i], narr);
         }
+        fill_random(&rx, 1);
+        fill_random(&ry, 1);
+
         if (myrank == 0) {
             printf("Warming up for %d ms.\n", NWARM);
         }
@@ -385,7 +349,12 @@ main(int argc, char **argv) {
             clock_gettime(CLOCK_MONOTONIC, &tv);
             for (uint64_t i = 1; i < narr-1; i ++) {
                 for (uint64_t j = 1; j < narr-1; j ++) {
-                    y[i][j] = a * x[i][j] + b * (x[i-1][j] + x[i+1][j] + x[i][j-1] + x[i][j+1]);
+                    w[i][j] = Di[i][j] * p[i][j]  \
+                              - ry * (Ky[i+1][j] * p[i+1][j] + Ky[i][j] * p[i-1][j]) \
+                              - rx * (Kx[i][j+1] * p[i][j+1] + Kx[i][j] * p[i][j-1]);
+                }
+                for (uint64_t j = 0; j < narr; j ++) {
+                    pw = pw + w[i][j] * p[i][j];
                 }
             }
         }
@@ -395,16 +364,13 @@ main(int argc, char **argv) {
 
 #ifdef TIMING
     uint64_t *p_ns, ns0 = 0, ns1 = 0;
-// #if defined(USE_PAPI) || defined(USE_TSC)
-//     uint64_t *p_cycles, cycle0 = 0, cycle1 = 0;
-// #endif
 
 #ifdef USE_PAPI
     // Init PAPI
-    int eventset = PAPI_NULL;
-    PAPI_library_init(PAPI_VER_CURRENT);
-    PAPI_create_eventset(&eventset);
-    PAPI_start(eventset);
+    // int eventset = PAPI_NULL;
+    // PAPI_library_init(PAPI_VER_CURRENT);
+    // PAPI_create_eventset(&eventset);
+    // PAPI_start(eventset);
     
 #elif USE_PAPIX6
     // Init PAPI
@@ -451,15 +417,20 @@ main(int argc, char **argv) {
 #endif
 
     p_ns = (uint64_t *)malloc(ntest * narr * sizeof(uint64_t));
-// #if defined(USE_PAPI) || defined(USE_TSC)
-//     p_cycles = (uint64_t *)malloc(ntest * narr * sizeof(uint64_t));
-// #endif
 #endif
 
     for (uint64_t i = 0; i < narr; i ++) {
-        fill_random(x[i], narr);
-        fill_random(y[i], narr);
+        fill_random(w[i], narr);
+        fill_random(Di[i], narr);
+        fill_random(p[i], narr);
+        fill_random(Kx[i], narr);
+        fill_random(Ky[i], narr);
     }
+    if (argc > 1) {
+        rx = 0.001;
+        ry = 0.001;
+    }
+    pw = 0;
 
     if (myrank == 0) {
         printf("Start running.\n");
@@ -472,18 +443,16 @@ main(int argc, char **argv) {
 
     uint64_t ra_res = 0;
     for (int it = 0; it < ntest; it ++) {
-        for (uint64_t i = 0; i < narr; i ++) {
-            for (uint64_t j = 0; j < narr; j ++) {
-                x[i][j] = y[i][j];
-            }
-        }
-
         for (uint64_t j = 1; j < narr-1; j ++) {
 
 #if defined(USE_PREWARM) && !defined(STAGE_TF)
             for (uint64_t k = 1; k < narr-1; k ++) {
-                y[j][k] = a * x[j][k] + b * (x[j-1][k] + x[j+1][k] + x[j][k-1] + x[j][k+1]);
+                w[j][k] = Di[j][k] * p[j][k]  \
+                          - ry * (Ky[j+1][k] * p[j+1][k] + Ky[j][k] * p[j-1][k]) \
+                          - rx * (Kx[j][k+1] * p[j][k+1] + Kx[j][k] * p[j][k-1]);
             }
+
+
 #endif
 
 #ifndef STAGE_TF
@@ -491,12 +460,10 @@ main(int argc, char **argv) {
 
 // Timing.
 #ifdef USE_PAPI
-            ns0 = PAPI_get_real_nsec();
-            // cycle0 = (uint64_t)PAPI_get_real_cyc();
 
 #elif USE_PAPIX6
-            ns0 = PAPI_get_real_nsec();
             PAPI_read(eventset, ev_vals_0);
+            ns0 = PAPI_get_real_nsec();
 
 #elif USE_CGT
             clock_gettime(CLOCK_MONOTONIC, &tv);
@@ -517,7 +484,6 @@ main(int argc, char **argv) {
 
 #elif defined(USE_TSC) || defined(USE_TSC_FENCE) || defined(USE_TSC_NATIVE)
             tsc_start(&ns0);
-            // cycle0 = ns0;
 
 #else
             _read_ns (ns0);
@@ -528,9 +494,10 @@ main(int argc, char **argv) {
 #endif
 
 #endif
-
             for (uint64_t k = 1; k < narr-1; k ++) {
-                y[j][k] = a * x[j][k] + b * (x[j-1][k] + x[j+1][k] + x[j][k-1] + x[j][k+1]);
+                w[j][k] = Di[j][k] * p[j][k]  \
+                          - ry * (Ky[j+1][k] * p[j+1][k] + Ky[j][k] * p[j-1][k]) \
+                          - rx * (Kx[j][k+1] * p[j][k+1] + Kx[j][k] * p[j][k-1]);
             }
 
 #ifdef STAGE_TF
@@ -538,12 +505,10 @@ main(int argc, char **argv) {
 
 // Timing.
 #ifdef USE_PAPI
-            ns0 = PAPI_get_real_nsec();
-            // cycle0 = (uint64_t)PAPI_get_real_cyc();
 
 #elif USE_PAPIX6
-            ns0 = PAPI_get_real_nsec();
             PAPI_read(eventset, ev_vals_0);
+            ns0 = PAPI_get_real_nsec();
 
 #elif USE_CGT
             clock_gettime(CLOCK_MONOTONIC, &tv);
@@ -559,12 +524,10 @@ main(int argc, char **argv) {
             ns0 = cntvct_to_ns(read_cntvcto_start());
 
 #elif USE_LIKWID
-            //ns0 = 0;
             LIKWID_MARKER_START("vkern"); 
 
 #elif defined(USE_TSC) || defined(USE_TSC_FENCE) || defined(USE_TSC_NATIVE)
             tsc_start(&ns0);
-            // cycle0 = ns0;
 
 #else
             _read_ns (ns0);
@@ -573,51 +536,17 @@ main(int argc, char **argv) {
 #endif
 
 #endif
-
-
-            register uint64_t ra;
-            register uint64_t rb = rb_step;            
+            register uint64_t rb = rb_step;
+            register uint64_t ra = nsamp * rb;
             register uint64_t lower = ra_lower_boundary;
-            
-#ifdef INSITU_SUB_C
-            ra = nsamp * rb;
-            while (ra > lower) {
-                ra -= rb;
-            }
+            ra_res += sub_loop(ra, rb, lower);
 #endif
-#ifdef INSITU_SUB_ASM
-            ra = nsamp * rb;
-            sub_loop(ra, rb, lower);
-#endif
-#ifdef INSITU_DSUB_ASM
-            
-            // __asm__ __volatile__(
-            //     "1:\n\t"
-            //     "subq %[rb], %[ra]\n\t"
-            //     "subq %[rb], %[ra]\n\t"
-            //     "cmpq %[lower], %[ra]\n\t"
-            //     "ja 1b\n\t"
-            //     : [ra] "+&r"(ra)
-            //     : [rb] "r"(rb),
-            //     [lower] "r"(lower)
-            //     : "cc"
-            // );
-            ra = nsamp * rb * 2;
-            dsub_loop(ra, rb, lower);
-#endif
-
-#endif
-
-
-
 
 #ifdef TIMING
 
 #ifdef USE_PAPI
             ns1 = PAPI_get_real_nsec();
             p_ns[it*narr+j] = (uint64_t)(ns1 - ns0);
-            // cycle1 = (uint64_t)PAPI_get_real_cyc();
-            // p_cycles[it*narr+j] = cycle1 - cycle0;
 
 #elif USE_PAPIX6
             ns1 = PAPI_get_real_nsec();
@@ -660,7 +589,6 @@ main(int argc, char **argv) {
 
 #elif defined(USE_TSC) || defined(USE_TSC_FENCE) || defined(USE_TSC_NATIVE)
             tsc_stop(&ns1);
-            // p_cycles[it*narr+j] = ns1 - cycle0;
             p_ns[it*narr+j] = (uint64_t)((double)(ns1 - ns0) * tsc_ns);
 
 #else
@@ -670,10 +598,12 @@ main(int argc, char **argv) {
 #endif
 
 #endif
-
-#ifdef STAGE_TF
-            ra_res += ra;
-#endif
+            // for (uint64_t k = 0; k < narr; k ++) {
+            //     pw = pw + w[j][k] * p[j][k];
+            // }
+            // if (nrank > 1) {
+            //     MPI_Allreduce(&pw, &pw, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+            // }
         }
     }
 
@@ -683,7 +613,8 @@ main(int argc, char **argv) {
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-#if defined(USE_PAPI) || defined(USE_PAPIX6)
+// #if defined(USE_PAPI) || defined(USE_PAPIX6)
+#if defined(USE_PAPIX6)
     PAPI_shutdown();
 
 #elif USE_LIKWID
@@ -696,37 +627,37 @@ main(int argc, char **argv) {
     char fname[4096], myhost[1024];
     gethostname(myhost, 1024);
 #ifdef USE_PAPI
-    sprintf(fname, "jacobi2d5p_papi_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "tl_f90_cg_calc_w_papi_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif USE_CGT
-    sprintf(fname, "jacobi2d5p_cgt_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "tl_f90_cg_calc_w_cgt_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif USE_WTIME
-    sprintf(fname, "jacobi2d5p_wtime_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "tl_f90_cg_calc_w_wtime_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif USE_CNTVCT
-    sprintf(fname, "jacobi2d5p_cntvct_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "tl_f90_cg_calc_w_cntvct_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif USE_CNTVCTO
-    sprintf(fname, "jacobi2d5p_cntvcto_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "tl_f90_cg_calc_w_cntvcto_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif USE_PAPIX6
-    sprintf(fname, "jacobi2d5p_papix6_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "tl_f90_cg_calc_w_papix6_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif USE_LIKWID
-    sprintf(fname, "jacobi2d5p_likwid_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "tl_f90_cg_calc_w_likwid_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif defined(USE_TSC_FENCE)
-    sprintf(fname, "jacobi2d5p_tsc_fence_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "tl_f90_cg_calc_w_tsc_fence_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif defined(USE_TSC_NATIVE)
-    sprintf(fname, "jacobi2d5p_tsc_native_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "tl_f90_cg_calc_w_tsc_native_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif defined(USE_TSC)
-    sprintf(fname, "jacobi2d5p_tsc_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "tl_f90_cg_calc_w_tsc_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #else
-    sprintf(fname, "jacobi2d5p_stiming_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "tl_f90_cg_calc_w_stiming_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #endif
 
@@ -743,9 +674,6 @@ main(int argc, char **argv) {
                 fprintf(fp, ",%ld", p_ev[it*narr*nev+j*nev+iev]);
             }
 #endif
-// #if defined(STAGE_TF) && (defined(USE_PAPI) || defined(USE_TSC))
-//             fprintf(fp, ",%lu", p_cycles[it*narr+j]);
-// #endif
             fprintf(fp, "\n");
         }
     }
@@ -757,25 +685,26 @@ main(int argc, char **argv) {
 #if defined(USE_LIKWID) || defined(USE_PAPIX6)
     free(p_ev);
 #endif
-// #if defined(USE_PAPI) || defined(USE_TSC)
-//     free(p_cycles);
-// #endif
 
 #endif
 
     if (myrank == 0) {
-        printf("Done. %f %llu\n", y[narr/2][narr/2], ra_res);
+        printf("Done. %f %lu\n", pw, ra_res);
     }
 
     for (size_t i = 0; i < narr; i ++) {
-        free(x[i]);
-    }
-    for (size_t i = 0; i < narr; i ++) {
-        free(y[i]);
+        free(w[i]);
+        free(Di[i]);
+        free(p[i]);
+        free(Kx[i]);
+        free(Ky[i]);
     }
 
-    free(x);
-    free(y);
+    free(w);
+    free(Di);
+    free(p);
+    free(Kx);
+    free(Ky);
 
 
     MPI_Barrier(MPI_COMM_WORLD);

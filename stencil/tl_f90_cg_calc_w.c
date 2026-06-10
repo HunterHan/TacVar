@@ -204,7 +204,7 @@ fill_random(double *arr, size_t size) {
     return;
 }
 
-static inline uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
+__attribute__((noinline)) uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
 #if defined(__x86_64__)
     __asm__ __volatile__(
         "1:\n\t"
