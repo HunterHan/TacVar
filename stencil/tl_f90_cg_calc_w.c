@@ -367,10 +367,10 @@ main(int argc, char **argv) {
 
 #ifdef USE_PAPI
     // Init PAPI
-    int eventset = PAPI_NULL;
-    PAPI_library_init(PAPI_VER_CURRENT);
-    PAPI_create_eventset(&eventset);
-    PAPI_start(eventset);
+    // int eventset = PAPI_NULL;
+    // PAPI_library_init(PAPI_VER_CURRENT);
+    // PAPI_create_eventset(&eventset);
+    // PAPI_start(eventset);
     
 #elif USE_PAPIX6
     // Init PAPI
@@ -444,6 +444,17 @@ main(int argc, char **argv) {
     uint64_t ra_res = 0;
     for (int it = 0; it < ntest; it ++) {
         for (uint64_t j = 1; j < narr-1; j ++) {
+
+#if defined(USE_PREWARM) && !defined(STAGE_TF)
+            for (uint64_t k = 1; k < narr-1; k ++) {
+                w[j][k] = Di[j][k] * p[j][k]  \
+                          - ry * (Ky[j+1][k] * p[j+1][k] + Ky[j][k] * p[j-1][k]) \
+                          - rx * (Kx[j][k+1] * p[j][k+1] + Kx[j][k] * p[j][k-1]);
+            }
+
+
+#endif
+
 #ifndef STAGE_TF
 #ifdef TIMING
 
@@ -589,12 +600,12 @@ main(int argc, char **argv) {
 #endif
 
 #endif
-            for (uint64_t k = 0; k < narr; k ++) {
-                pw = pw + w[j][k] * p[j][k];
-            }
-            if (nrank > 1) {
-                MPI_Allreduce(&pw, &pw, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-            }
+            // for (uint64_t k = 0; k < narr; k ++) {
+            //     pw = pw + w[j][k] * p[j][k];
+            // }
+            // if (nrank > 1) {
+            //     MPI_Allreduce(&pw, &pw, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+            // }
         }
     }
 
@@ -604,7 +615,8 @@ main(int argc, char **argv) {
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-#if defined(USE_PAPI) || defined(USE_PAPIX6)
+// #if defined(USE_PAPI) || defined(USE_PAPIX6)
+#if defined(USE_PAPIX6)
     PAPI_shutdown();
 
 #elif USE_LIKWID

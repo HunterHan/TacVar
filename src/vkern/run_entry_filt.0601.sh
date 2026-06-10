@@ -5,12 +5,14 @@
 
 initialize(){
     local cpu_freq=$1
+    sudo sh -c 'echo 0 > /sys/devices/system/cpu/cpufreq/boost'
     sudo cpupower frequency-set -u "${cpu_freq}GHz" -d "${cpu_freq}GHz" -g performance
     sudo cpupower frequency-info
 }
 
 cleanup(){
     sudo cpupower frequency-set -g schedutil
+    sudo sh -c 'echo 1 > /sys/devices/system/cpu/cpufreq/boost'
 }
 
 trap 'echo "ERR"' ERR
@@ -30,9 +32,10 @@ KERNEL=tvkern
 BINW_MIN=${BINW_MIN:-10}
 P_LOW=${P_LOW:-0.01}
 NP_LIST=${NP_LIST:-"64"}
-TIMER_LIST=${TIMER_LIST:-"cgt papi"}
+TIMER_LIST=${TIMER_LIST:-"cgt papi papix6 wtime"}
 SIZE_LIST=${SIZE_LIST:-"0 16 32 64 128 256 512 1024 2048 4096 8192"}
 NSAMP=${NSAMP:-1000}
+NSAMP_RATIO_LIST=${NSAMP_RATIO_LIST:-"0.5 0.8 1.0"}
 RA_LOWER=${RA_LOWER:-0}
 RB_STEP=${RB_STEP:-1}
 NTEST=${NTEST:-1000}
@@ -45,6 +48,7 @@ DATE_STAMP=$(date +%Y%m%d-%H%M%S)
 DATA_FOLDER="${DATA_ROOT}/${DATE_BASE}/${HOSTNAME}/output_tvkern_filt/${DATE_STAMP}"
 
 case $HOSTNAME in
+    "camd9554n1") CPU_FREQ=3.1 ;;
     "camd9554n2") CPU_FREQ=3.1 ;;
     "cgnr6760pn2") CPU_FREQ=2.2 ;;
     "c920bn3") CPU_FREQ=2.9 ;;
@@ -59,10 +63,10 @@ fi
 
 initialize "$CPU_FREQ"
 CPU_FREQ_KHZ_REAL=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq)
-NSPV=$(echo "scale=12; 1000000 / $CPU_FREQ_KHZ_REAL * 2" | bc)
+NSPV=$(echo "scale=12; 1000000 / $CPU_FREQ_KHZ_REAL" | bc)
 
 case $ARCH in
-    "x86_64") TIMER_LIST="$TIMER_LIST tsc tsc_fence tsc_native likwid" ;;
+    "x86_64") TIMER_LIST="$TIMER_LIST tsc tsc_native" ;;
     "aarch64") TIMER_LIST="$TIMER_LIST cntvct cntvcto" ;;
     *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
 esac
@@ -74,6 +78,7 @@ echo "NP_LIST: $NP_LIST"
 echo "TIMER_LIST: $TIMER_LIST"
 echo "SIZE_LIST: $SIZE_LIST"
 echo "NSAMP: $NSAMP"
+echo "NSAMP_RATIO_LIST: $NSAMP_RATIO_LIST"
 echo "RA_LOWER: $RA_LOWER"
 echo "RB_STEP: $RB_STEP"
 echo "NTEST: $NTEST"
@@ -92,7 +97,7 @@ fi
 mkdir -p "$DATA_FOLDER"
 rm -f ./*.x ./*.csv
 
-mpicc -O2 -Wall -o "${FILTER_ROOT}/filt.x" "${FILTER_ROOT}/filt.c"
+mpicc -O2 -Wall -o "${FILTER_ROOT}/filt.x" "${FILTER_ROOT}/filt_v2.0608.c"
 for timer in $TIMER_LIST; do
     timer_cflags="$BASE_CFLAGS"
     case $timer in
@@ -112,11 +117,9 @@ for timer in $TIMER_LIST; do
     for np in $NP_LIST; do
         for size in $SIZE_LIST; do
             tm_dir="${DATA_FOLDER}/${KERNEL}_${timer}_np${np}_size${size}"
-            te_dir="${tm_dir}_tf"
-            res_dir="${tm_dir}_filt"
 
-            rm -rf "$tm_dir" "$te_dir" "$res_dir" ./*.csv
-            mkdir -p "$tm_dir" "$te_dir" "$res_dir"
+            rm -rf "$tm_dir" ./*.csv
+            mkdir -p "$tm_dir"
 
             if [ "$timer" = "likwid" ]; then
                 run_cmd=(likwid-mpirun -mpi openmpi -np "$np" -g "${LIKWID_GROUP:-L3}" -m)
@@ -124,21 +127,31 @@ for timer in $TIMER_LIST; do
                 run_cmd=(mpirun -np "$np" --map-by core --bind-to core)
             fi
 
-            "${run_cmd[@]}" "./${KERNEL}_${timer}.x" "$size" "$NSAMP" "$RA_LOWER" "$RB_STEP"
+            "${run_cmd[@]}" "./${KERNEL}_${timer}.x" "$size" "$RA_LOWER" "$RB_STEP"
             mv ./*.csv "$tm_dir/"
-            "${run_cmd[@]}" "./${KERNEL}_${timer}_tf.x" "$size" "$NSAMP" "$RA_LOWER" "$RB_STEP"
-            mv ./*.csv "$te_dir/"
 
-            if [ "$timer" = "likwid" ]; then
-                awk -F, '{if ($2 != 0) ok=1} END{exit ok ? 0 : 1}' "$tm_dir"/*.csv || { echo "Invalid LIKWID tm: all timing values are zero"; exit 1; }
-                awk -F, '{if ($3 != 0) ok=1} END{exit ok ? 0 : 1}' "$te_dir"/*.csv || { echo "Invalid LIKWID tf: all timing values are zero"; exit 1; }
-            fi
+            for nsamp_ratio in ${NSAMP_RATIO_LIST}; do
+                nsamp_tf=$("${PYTHON}" "${FILTER_ROOT}/get_quantile.py" "${tm_dir}" 1 "${nsamp_ratio}" "${NSPV}")
+                te_dir="${tm_dir}_nsampRatio${nsamp_ratio}_nsamp${nsamp_tf}_tf"
+                res_dir="${tm_dir}_nsampRatio${nsamp_ratio}_nsamp${nsamp_tf}_filt"
+                rm -rf "$te_dir" "$res_dir" ./*.csv
+                mkdir -p "$te_dir" "$res_dir"
 
-            "$PYTHON" "${FILTER_ROOT}/get_met.py" "$tm_dir" 1
-            "$PYTHON" "${FILTER_ROOT}/get_tf.py" "$te_dir" 1 2 "$NSPV"
-            binw=$("$PYTHON" "${FILTER_ROOT}/get_binw.py" "$tm_dir" 1 "$BINW_MIN")
-            "${FILTER_ROOT}/filt.x" -w "$binw" -n 100000 -l "$P_LOW" -x 0.005 -y 0.005 -z 0.005
-            mv met.csv tf.csv tr_hist.csv tm_hist.csv sim_cdf.csv er.out ep.out wd.out "$res_dir/"
+                "${run_cmd[@]}" "./${KERNEL}_${timer}_tf.x" "$size" "$RA_LOWER" "$RB_STEP" "$nsamp_tf"
+                mv ./*.csv "$te_dir/"
+
+                if [ "$timer" = "likwid" ]; then
+                    awk -F, '{if ($2 != 0) ok=1} END{exit ok ? 0 : 1}' "$tm_dir"/*.csv || { echo "Invalid LIKWID tm: all timing values are zero"; exit 1; }
+                    awk -F, '{if ($3 != 0) ok=1} END{exit ok ? 0 : 1}' "$te_dir"/*.csv || { echo "Invalid LIKWID tf: all timing values are zero"; exit 1; }
+                fi
+
+                "$PYTHON" "${FILTER_ROOT}/get_met.py" "$tm_dir" 1
+                "$PYTHON" "${FILTER_ROOT}/get_tf.py" "$te_dir" 1 2 "$NSPV"
+                binw=$("$PYTHON" "${FILTER_ROOT}/get_binw.py" "$tm_dir" 1 "$BINW_MIN")
+                "${FILTER_ROOT}/filt.x" -w "$binw" -n 100000 -l "$P_LOW" -x 0.005 -y 0.005 -z 0.005
+                mv met.csv tf.csv tr_hist.csv tm_hist.csv sim_cdf.csv er.out ep.out wd.out calc_tr_residual.0608.csv "$res_dir/"
+            done
+
         done
     done
 done

@@ -102,6 +102,7 @@ sim_met(prob_hist_t *tmh, prob_hist_t *trh, i64 *tf_arr, u64 tf_len, double *psi
     for (u64 ir = 1; ir < nbin; ir ++) {
         ptrhc[ir] = ptrhc[ir-1] + trh->pbin[ir-1].p;
         psim[ir] = 0;
+        
     }
     trpmax = ptrhc[nbin-1];
     
@@ -291,7 +292,7 @@ calc_tr(prob_hist_t *tmh, prob_hist_t *trh, i64 *tf_arr, u64 tf_len, filt_param_
 	}
     ep = fabs(tot_p - 1);
     printf("[FilT-calc_tr] tot_p=%f, Normalizing probabilities...", tot_p);
-    fflush(stdout);
+    fflush(stdout);gpt
     for (u64 i = 0; i < trh->nbin; i ++) {
         trh->pbin[i].p /= tot_p;
     } 

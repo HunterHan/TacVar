@@ -301,7 +301,6 @@ static inline uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
     __asm__ __volatile__(
         "1:\n\t"
         "subq %[rb], %[ra]\n\t"
-        "subq %[rb], %[ra]\n\t"
         "cmpq %[lower], %[ra]\n\t"
         "ja 1b\n\t"
         : [ra] "+&r"(ra)
@@ -315,7 +314,6 @@ static inline uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
     __asm__ __volatile__(
         "1:\n\t"
         "sub %[ra], %[ra], %[rb]\n\t"
-        "sub %[ra], %[ra], %[rb]\n\t"
         "cmp %[ra], %[lower]\n\t"
         "b.hi 1b\n\t"
         : [ra] "+&r"(ra)
@@ -328,7 +326,6 @@ static inline uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
 #else
     do {
         ra -= rb;
-        ra -= rb;
     } while (ra > lower);
     return ra;
 #endif
@@ -337,7 +334,7 @@ static inline uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
 
 static inline uint64_t run_tvkern(uint64_t iters, uint64_t rb, uint64_t lower)
 {
-    uint64_t ra = iters * rb * 2;
+    uint64_t ra = iters * rb;
     if (ra <= lower) {
         return ra;
     }
@@ -387,17 +384,29 @@ main(int argc, char **argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &nrank);
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
-    if (argc < 5) {
+    if (argc < 4) {
         if (myrank == 0) {
-            printf("Usage: %s <fsize_kib> <nsamp> <lower> <rb_step>\n", argv[0]);
+            printf("Usage: %s <fsize_kib> <lower> <rb_step> [nsamp]\n", argv[0]);
         }
         MPI_Finalize();
         return 1;
     }
     fsize = (uint64_t)atoll(argv[1]) * 1024ull;
-    nsamp = (uint64_t)atoll(argv[2]);
-    lower = (uint64_t)atoll(argv[3]);
-    rb_step = (uint64_t)atoll(argv[4]);
+    lower = (uint64_t)atoll(argv[2]);
+    rb_step = (uint64_t)atoll(argv[3]);
+#ifdef STAGE_TF
+    if (argc < 5) {
+        if (myrank == 0) {
+            printf("NSAMP IS MISSING\n");
+        }
+        MPI_Finalize();
+        return 1;
+    }
+    nsamp = (uint64_t)atoll(argv[4]);
+    if (myrank == 0) {
+        printf("NSAMP = %lu\n", nsamp);
+    }
+#endif
     if (rb_step == 0) {
         if (myrank == 0) {
             printf("rb_step must be nonzero.\n");
@@ -423,10 +432,7 @@ main(int argc, char **argv) {
 #endif
 
 #ifdef USE_PAPI
-    int eventset = PAPI_NULL;
     PAPI_library_init(PAPI_VER_CURRENT);
-    PAPI_create_eventset(&eventset);
-    PAPI_start(eventset);
 #elif defined(USE_PAPIX6)
     int eventset = PAPI_NULL;
     int nev = 6;
