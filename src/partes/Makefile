@@ -69,6 +69,7 @@ TIMERDIR = timers
 # Core object files for partes-mpi (with MPI flag)
 CORE_MPI_OBJS = partes-mpi-mpi.o parse_args-mpi.o get_tspec-mpi.o pterr-mpi.o stat-mpi.o detect_std_time-mpi.o
 ASSESS_MPI_OBJS = assess-mpi-mpi.o parse_args-mpi.o get_tspec-mpi.o pterr-mpi.o stat-mpi.o detect_std_time-mpi.o
+DETECING_0614_MPI_OBJS = detecing-mpi.0614-mpi.o parse_args-mpi.o get_tspec-mpi.o pterr-mpi.o stat-mpi.o detect_std_time-mpi.o
 
 # Gauge object files for partes-mpi (with MPI flag)
 GAUGE_MPI_OBJS = $(patsubst $(GAUGEDIR)/%.c,$(GAUGEDIR)/%-mpi.o,$(wildcard $(GAUGEDIR)/*.c))
@@ -100,18 +101,22 @@ TIMER_MPI_OBJS = $(patsubst $(TIMERDIR)/%.c,$(TIMERDIR)/%-mpi.o,$(TIMER_SRCS))
 # All object files for partes-mpi
 PARTES_MPI_OBJS = $(CORE_MPI_OBJS) $(KERNEL_MPI_OBJS) $(TIMER_MPI_OBJS) $(GAUGE_MPI_OBJS)
 ASSESS_MPI_ALL_OBJS = $(ASSESS_MPI_OBJS) $(KERNEL_MPI_OBJS) $(TIMER_MPI_OBJS) $(GAUGE_MPI_OBJS)
+DETECING_0614_MPI_ALL_OBJS = $(DETECING_0614_MPI_OBJS) $(KERNEL_MPI_OBJS) $(TIMER_MPI_OBJS) $(GAUGE_MPI_OBJS)
 
 # Object files for partes-fit (without MPI flag)
 FIT_OBJS = partes-fit.o pterr.o stat.o detect_std_time.o get_tspec.o
 
 # Targets
-all: partes-mpi.x assess-mpi.x partes-fit.x
+all: partes-mpi.x assess-mpi.x detecing-mpi.0614.x partes-fit.x
 
 partes-mpi.x: $(PARTES_MPI_OBJS)
 	$(CC) -g $(PARTES_MPI_OBJS) -o $@ $(LDFLAGS)
 
 assess-mpi.x: $(ASSESS_MPI_ALL_OBJS)
 	$(CC) -g $(ASSESS_MPI_ALL_OBJS) -o $@ $(LDFLAGS)
+
+detecing-mpi.0614.x: $(DETECING_0614_MPI_ALL_OBJS)
+	$(CC) -g $(DETECING_0614_MPI_ALL_OBJS) -o $@ $(LDFLAGS)
 
 partes-fit.x: $(FIT_OBJS)
 	$(CC) -g $(FIT_OBJS) $(TIMER_MPI_OBJS) -o $@ $(LDFLAGS)
