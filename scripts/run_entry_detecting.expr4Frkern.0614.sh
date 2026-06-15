@@ -1,6 +1,12 @@
 #!/bin/bash
 set -u
 
+SCRIPT_START_EPOCH="$(date +%s)"
+SCRIPT_START_ISO="$(date -Is)"
+SCRIPT_CMD="$0${*:+ $*}"
+RUN_LOG_STARTED=0
+RUN_LOG_FILE=""
+
 initialize(){
     return 0
     local cpu_freq=$1
@@ -74,6 +80,32 @@ cleanup_residual_processes(){
     sleep 1
     echo "[harness] residual processes after cleanup:"
     pgrep -af "${pattern}" | awk -v self="$$" -v parent="$PPID" '$1 != self && $1 != parent {print}' || true
+}
+
+start_run_log(){
+    local data_folder=$1
+    RUN_LOG_FILE="${data_folder}/run.log"
+    exec > >(tee -a "${RUN_LOG_FILE}") 2>&1
+    RUN_LOG_STARTED=1
+    echo "run_start_time=${SCRIPT_START_ISO}"
+    echo "run_command=${SCRIPT_CMD}"
+    echo "run_cwd=$(pwd)"
+    echo "run_pid=$$"
+    echo "run_ppid=$PPID"
+    echo "run_log=${RUN_LOG_FILE}"
+}
+
+finish_run(){
+    local status=$?
+    local end_epoch
+    end_epoch="$(date +%s)"
+    if [ "${RUN_LOG_STARTED:-0}" = "1" ]; then
+        echo "run_end_time=$(date -Is)"
+        echo "exit_status=${status}"
+        echo "elapsed_sec=$((end_epoch - SCRIPT_START_EPOCH))"
+    fi
+    cleanup
+    exit "${status}"
 }
 
 shuffle_list(){
@@ -232,15 +264,36 @@ do_detect(){
     cp -f "$0" "${data_folder}/$(basename "$0")"
     cp -f "${walk_list}" "${data_folder}/walklists/$(basename "${walk_list}")"
     echo "DATA_FOLDER: ${data_folder}"
+    start_run_log "${data_folder}"
 
     {
         echo "expr_name=${EXPR_NAME}"
+        echo "run_start_time=${SCRIPT_START_ISO}"
+        echo "run_command=${SCRIPT_CMD}"
+        echo "run_cwd=$(pwd)"
+        echo "run_pid=$$"
+        echo "run_ppid=$PPID"
+        echo "host=${HOSTNAME}"
+        echo "arch=${ARCH}"
+        echo "date_base=${DATE_BASE}"
+        echo "date_stamp=${DATE_STAMP}"
+        echo "walk_tag=${walk_tag}"
+        echo "walk_count=${walk_count}"
+        echo "data_folder=${data_folder}"
+        echo "binary=${BINARY}"
         echo "binary_commit=${COMMIT_HASH}"
+        echo "gauge=${GAUGE}"
+        echo "timer_list=${TIMER_LIST}"
+        echo "np_list=${NP_LIST}"
+        echo "ntests=${NTESTS}"
+        echo "ntiles=${NTILES}"
+        echo "cut_p=${CUT_P}"
         echo "shuffle_seed=${SHUFFLE_SEED}"
         echo "shuffle_count=${SHUFFLE_COUNT}"
         echo "original_fkern_list=${FKERN_LIST}"
         echo "rkern_list=${RKERN_LIST}"
-    } > "${data_folder}/shuffle.log"
+    } > "${data_folder}/meta.txt"
+    cp -f "${data_folder}/meta.txt" "${data_folder}/shuffle.log"
 
     for shuffle_idx in $(seq 0 $((SHUFFLE_COUNT - 1))); do
         shuffle_id="shuffle${shuffle_idx}"
@@ -293,7 +346,7 @@ TIMER_LIST="$(filter_timers $(timer_list_for_arch "${ARCH}"))"
 cleanup_residual_processes
 initialize "${CPU_FREQ}"
 trap 'echo "ERR"' ERR
-trap cleanup EXIT
+trap finish_run EXIT
 
 if [ "${BUILD:-1}" = "1" ]; then
     MPI_CC="${MPI_CC:-mpicc}"
