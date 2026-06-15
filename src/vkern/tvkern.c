@@ -371,6 +371,24 @@ static inline uint64_t dsub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
 }
 
 
+static inline uint64_t dsub_loop_c(uint64_t ra, uint64_t rb, uint64_t lower) {
+    do {
+        ra -= rb;
+        ra -= rb;
+    } while (ra > lower);
+    return ra;
+}
+
+
+static inline uint64_t dsub_split_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
+    ra = sub_loop(ra, rb, lower + rb);
+    if (ra > lower) {
+        ra = sub_loop(ra, rb, lower);
+    }
+    return ra;
+}
+
+
 static inline uint64_t run_tvkern(uint64_t iters, uint64_t rb, uint64_t lower)
 {
     uint64_t ra = iters * rb;
@@ -380,9 +398,15 @@ static inline uint64_t run_tvkern(uint64_t iters, uint64_t rb, uint64_t lower)
 
 #if defined(INSITU_DSUB_ASM)
     ra = iters * rb * 2;
-    dsub_loop(ra, rb, lower);
+    ra = dsub_loop(ra, rb, lower);
+#elif defined(INSITU_DSUB_C_FALLBACK)
+    ra = iters * rb * 2;
+    ra = dsub_loop_c(ra, rb, lower);
+#elif defined(INSITU_DSUB_SPLIT_ASM)
+    ra = iters * rb * 2;
+    ra = dsub_split_loop(ra, rb, lower);
 #else
-    sub_loop(ra, rb, lower);
+    ra = sub_loop(ra, rb, lower);
 #endif
     return ra;
 }
