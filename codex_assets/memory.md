@@ -206,3 +206,17 @@ Note: the correct third hostname is `cgnr6760pn2`, not `cngr6760pn2`.
     - `run_assess_expr1_fsize.sh` must read the pre-generated walk list and fail if it is missing; `ASSESS_ALLOW_LOCAL_WALKLIST=1` is debugging-only. It is allowed only on `c920bn3`, `camd9554n2`, and `cgnr6760pn2` by default; override with `ASSESS_ALLOW_OTHER_HOST=1` only for deliberate debugging.
     - Plot manually downloaded data on `af309` with `scripts_plot/assess_expr1_fsize_manual_plot.ipynb`; edit the parameter cell for `DATA_ROOT`, `DATE`, `HOSTS`, `EXPRS`, `OUTPUT_DIR`, expected samples, fsize list, and optional batch selection.
 - Defer gpns/abort stabilization until a data run actually fails.
+
+## Harness Engineering: Remote Command Smoothness
+
+Recorded after the 2026-06-15 detecting expr3/expr4 0614 work. These rules prevent repeated Codex/remote-shell friction.
+
+- Avoid deeply nested one-shot commands like ssh-af309 wrapping python/heredoc when the embedded script contains shell variables or awk fields such as dollar-one, PPID, dollar-dollar, pattern variables, backslashes, or TeX row terminators. The local shell may expand or mangle them before the remote shell sees them.
+- For nontrivial remote edits, first open an interactive ssh af309 session, cd to ~/code/TacVar, then paste a remote-side single-quoted heredoc such as python3 heredoc with quoted PY marker. In that shape, shell variables and awk fields stay literal because the heredoc is interpreted only on af309.
+- Keep remote patch scripts short and verify immediately: bash -n for shell scripts, python syntax checks for helper scripts, and JSON-load checks for notebooks.
+- Do not hand-copy long base64 blobs into a command. In the 0614 expr3/expr4 work, a manual base64 paste was truncated and failed decoding. Prefer an interactive remote heredoc or a small remote temp script.
+- Avoid Python triple-quote collisions in generated helper scripts. If a script must write a shell function containing quotes/backslashes, use a clearly different delimiter style or write the function as a list of lines joined with newline characters; run a syntax check before sending it remote.
+- Avoid very long background-launch commands in an interactive terminal; line wrapping and control-channel ownership can make the prompt look stuck. Prefer a tiny remote launch script, or use ssh -f plus nohup with stdin redirected from /dev/null and then confirm with pgrep.
+- When launching long experiments, record DATE_STAMP, host, expected counts, and launch log path immediately. Pull data per node only after pgrep confirms that node has fully stopped; never rsync a node while its experiment is still running.
+- Disable pagers for final git checks in remote sessions: use git --no-pager log and git status --short. A pager in a limited terminal caused garbled follow-up input once.
+- If a remote rsync seems to hang silently, check from a second shell whether an rsync process and target directory actually exist before waiting indefinitely. If no rsync process exists and no target directory appears, interrupt the stuck control command and rerun a short, standalone rsync.
