@@ -79,7 +79,10 @@ write_root_meta(){
         echo "np_list=${NP_LIST:-}"
         echo "nsamp=${NSAMP:-}"
         echo "nsamp_ratio_list=${NSAMP_RATIO_LIST:-}"
-                    echo "insitu=${INSITU}"
+        echo "insitu=${INSITU}"
+        echo "nspv=${NSPV:-}"
+        echo "theoretical_nspv_factor=${THEORETICAL_NSPV_FACTOR:-}"
+        echo "effective_nspv=${EFFECTIVE_NSPV:-}"
     } > "${data_folder}/meta.txt"
     cp -f "$0" "${data_folder}/$(basename "$0")"
 }
@@ -93,7 +96,9 @@ write_shuffle_meta(){
         cat "${DATA_FOLDER}/meta.txt"
         echo "shuffle_id=${shuffle_id}"
         echo "shuffle_timer_list=${shuffled_timers}"
-                    echo "insitu=${INSITU}"
+        echo "insitu=${INSITU}"
+        echo "theoretical_nspv_factor=${THEORETICAL_NSPV_FACTOR:-}"
+        echo "effective_nspv=${EFFECTIVE_NSPV:-}"
     } > "${shuffle_dir}/meta.txt"
 }
 
@@ -112,6 +117,10 @@ fi
 
 KERNEL=tvkern
 INSITU=${INSITU:-INSITU_DSUB_ASM}
+case "${INSITU}" in
+    INSITU_DSUB_ASM) THEORETICAL_NSPV_FACTOR=${THEORETICAL_NSPV_FACTOR:-2} ;;
+    *) THEORETICAL_NSPV_FACTOR=${THEORETICAL_NSPV_FACTOR:-1} ;;
+esac
 BINW_MIN=${BINW_MIN:-10}
 P_LOW=${P_LOW:-0.01}
 NP_LIST=${NP_LIST:-"64"}
@@ -161,6 +170,7 @@ cleanup_residual_processes
 initialize "$CPU_FREQ"
 CPU_FREQ_KHZ_REAL=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq)
 NSPV=$(echo "scale=12; 1000000 / $CPU_FREQ_KHZ_REAL" | bc)
+EFFECTIVE_NSPV=$(echo "scale=12; ${NSPV} * ${THEORETICAL_NSPV_FACTOR}" | bc)
 
 case $ARCH in
     "x86_64") TIMER_LIST="$TIMER_LIST tsc tsc_native" ;;
@@ -186,6 +196,8 @@ echo "SHUFFLE_COUNT: $SHUFFLE_COUNT"
 echo "SHUFFLE_SEED: $SHUFFLE_SEED"
 echo "COMMIT_HASH: $COMMIT_HASH"
 echo "NSPV: $NSPV"
+echo "THEORETICAL_NSPV_FACTOR: $THEORETICAL_NSPV_FACTOR"
+echo "EFFECTIVE_NSPV: $EFFECTIVE_NSPV"
 
 if command -v gsl-config >/dev/null 2>&1; then
     GSL_CFLAGS="$(gsl-config --cflags)"
@@ -243,7 +255,7 @@ for shuffle_idx in $(seq 0 $((SHUFFLE_COUNT - 1))); do
             mv ./*.csv "$tm_dir/"
 
             for nsamp_ratio in ${NSAMP_RATIO_LIST}; do
-                nsamp_tf=$("${PYTHON}" "${FILTER_ROOT}/get_quantile.py" "${tm_dir}" 1 "${nsamp_ratio}" "${NSPV}")
+                nsamp_tf=$("${PYTHON}" "${FILTER_ROOT}/get_quantile.py" "${tm_dir}" 1 "${nsamp_ratio}" "${EFFECTIVE_NSPV}")
                 te_dir="${tm_dir}_nsampRatio${nsamp_ratio}_nsamp${nsamp_tf}_tf"
                 res_dir="${tm_dir}_nsampRatio${nsamp_ratio}_nsamp${nsamp_tf}_filt"
                 rm -rf "$te_dir" "$res_dir" ./*.csv
@@ -258,7 +270,7 @@ for shuffle_idx in $(seq 0 $((SHUFFLE_COUNT - 1))); do
                 fi
 
                 "$PYTHON" "${FILTER_ROOT}/get_met.py" "$tm_dir" 1
-                "$PYTHON" "${FILTER_ROOT}/get_tf.py" "$te_dir" 1 2 "$NSPV"
+                "$PYTHON" "${FILTER_ROOT}/get_tf.py" "$te_dir" 1 2 "$EFFECTIVE_NSPV"
                 binw=$("$PYTHON" "${FILTER_ROOT}/get_binw.py" "$tm_dir" 1 "$BINW_MIN")
                 "${FILTER_ROOT}/filt.x" -w "$binw" -n 100000 -l "$P_LOW" -x 0.005 -y 0.005 -z 0.005
                 {
@@ -267,6 +279,9 @@ for shuffle_idx in $(seq 0 $((SHUFFLE_COUNT - 1))); do
                     echo "shuffle_seed=${SHUFFLE_SEED}"
                     echo "shuffle_timer_list=${shuffled_timers}"
                     echo "insitu=${INSITU}"
+                    echo "nspv=${NSPV}"
+                    echo "theoretical_nspv_factor=${THEORETICAL_NSPV_FACTOR}"
+                    echo "effective_nspv=${EFFECTIVE_NSPV}"
                 } > "${res_dir}/meta.txt"
                 mv met.csv tf.csv tr_hist.csv tm_hist.csv sim_cdf.csv er.out ep.out wd.out calc_tr_residual.0608.csv "$res_dir/"
             done
