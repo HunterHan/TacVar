@@ -2,6 +2,7 @@
 set -u
 
 initialize(){
+    return 0
     local cpu_freq=$1
     if [ -e /sys/devices/system/cpu/cpufreq/boost ]; then
         echo 0 | sudo tee /sys/devices/system/cpu/cpufreq/boost >/dev/null 2>/dev/null || true
@@ -16,6 +17,7 @@ initialize(){
 }
 
 cleanup(){
+    return 0
     sudo cpupower frequency-set -g schedutil
     if [ -e /sys/devices/system/cpu/intel_pstate/no_turbo ]; then
         echo 0 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo >/dev/null 2>/dev/null || true
@@ -65,7 +67,7 @@ filter_timers(){
 }
 
 cleanup_residual_processes(){
-    local pattern='partes-mpi.x|detecing-mpi.0614.x|mpirun|orted|prted|run_entry_detecting'
+    local pattern='partes-mpi.x|detecing-mpi.0614.x|mpirun|prterun|orted|prted|run_entry_detecting|run_entry_filt'
     echo "[harness] residual processes before cleanup:"
     pgrep -af "${pattern}" | awk -v self="$$" -v parent="$PPID" '$1 != self && $1 != parent {print}' || true
     pgrep -af "${pattern}" | awk -v self="$$" -v parent="$PPID" '$1 != self && $1 != parent {print $1}' | xargs -r kill -9 || true
@@ -120,7 +122,7 @@ run_one(){
     local rsize_kib=$8
     local interval_ns=$9
     local shuffle_id=${10}
-    local shuffled_fkerns=${11}
+    local shuffle_fkern_list=${11}
 
     mkdir -p "${combo_dir}"
     {
@@ -142,7 +144,7 @@ run_one(){
         echo "binary_commit=${COMMIT_HASH}"
         echo "shuffle_id=${shuffle_id}"
         echo "shuffle_seed=${SHUFFLE_SEED}"
-        echo "shuffled_fkerns=${shuffled_fkerns}"
+        echo "shuffle_fkern_list=${shuffle_fkern_list}"
         echo "walk_list=${walk_list}"
         sha256sum "${walk_list}" 2>/dev/null || true
     } > "${combo_dir}/meta.txt"
@@ -173,7 +175,7 @@ run_one(){
             { echo "binary_commit=${COMMIT_HASH}"; \
               echo "shuffle_id=${shuffle_id}"; \
               echo "shuffle_seed=${SHUFFLE_SEED}"; \
-              echo "shuffled_fkerns=${shuffled_fkerns}"; \
+              echo "shuffle_fkern_list=${shuffle_fkern_list}"; \
             mpirun --map-by core --bind-to core -np "${np}" "${BINARY}" \
                 --ta "${ta}" --tb "${ta}" \
                 --ntests "${NTESTS}" --ntiles "${NTILES}" --cut-p "${CUT_P}" \
@@ -197,7 +199,7 @@ main_preamble(){
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     PROJ_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
     WALK_ROOT="${WALK_ROOT:-${SCRIPT_DIR}/walklists}"
-    NUM_WALK="${2:-${NUM_WALK:-5}}"
+    if [ "$MODE" = "gen" ]; then NUM_WALK="${2:-${NUM_WALK:-20}}"; else NUM_WALK="${NUM_WALK:-20}"; fi
 }
 
 main_preamble "$@"

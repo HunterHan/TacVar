@@ -1,8 +1,8 @@
 #!/bin/bash
 set -u
 
-
 initialize(){
+    return 0
     local cpu_freq=$1
     if [ -e /sys/devices/system/cpu/cpufreq/boost ]; then
         echo 0 | sudo tee /sys/devices/system/cpu/cpufreq/boost >/dev/null 2>/dev/null || true
@@ -12,18 +12,11 @@ initialize(){
     fi
     sudo cpupower frequency-set -u "${cpu_freq}GHz" -d "${cpu_freq}GHz" -g performance
     sudo cpupower frequency-info
-    [ -r /sys/devices/system/cpu/intel_pstate/no_turbo ] && echo "intel_no_turbo=$(cat /sys/devices/system/cpu/intel_pstate/no_turbo)"
-    [ -r /sys/devices/system/cpu/cpufreq/boost ] && echo "cpufreq_boost=$(cat /sys/devices/system/cpu/cpufreq/boost)"
 }
 
 cleanup(){
+    return 0
     sudo cpupower frequency-set -g schedutil
-    if [ -e /sys/devices/system/cpu/intel_pstate/no_turbo ]; then
-        echo 0 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo >/dev/null 2>/dev/null || true
-    fi
-    if [ -e /sys/devices/system/cpu/cpufreq/boost ]; then
-        echo 1 | sudo tee /sys/devices/system/cpu/cpufreq/boost >/dev/null 2>/dev/null || true
-    fi
 }
 
 choose_python(){
@@ -66,7 +59,7 @@ filter_timers(){
 }
 
 cleanup_residual_processes(){
-    local pattern='partes-mpi.x|detecing-mpi.0614.x|mpirun|orted|prted|run_entry_detecting'
+    local pattern='partes-mpi.x|detecing-mpi.0614.x|mpirun|prterun|orted|prted|run_entry_detecting|run_entry_filt'
     echo "[harness] residual processes before cleanup:"
     pgrep -af "${pattern}" | awk -v self="$$" -v parent="$PPID" '$1 != self && $1 != parent {print}' || true
     pgrep -af "${pattern}" | awk -v self="$$" -v parent="$PPID" '$1 != self && $1 != parent {print $1}' | xargs -r kill -9 || true
@@ -75,7 +68,7 @@ cleanup_residual_processes(){
     pgrep -af "${pattern}" | awk -v self="$$" -v parent="$PPID" '$1 != self && $1 != parent {print}' || true
 }
 
-shuffle_fsize_list(){
+shuffle_list(){
     local shuffle_id=$1
     shift
     python3 - "${SHUFFLE_SEED}" "${shuffle_id}" "$@" <<'PY_SHUFFLE'
@@ -121,7 +114,7 @@ run_one(){
     local rsize_kib=$8
     local interval_ns=$9
     local shuffle_id=${10}
-    local shuffle_fsize_list=${11}
+    local shuffle_tbase_list=${11}
 
     mkdir -p "${combo_dir}"
     {
@@ -143,7 +136,7 @@ run_one(){
         echo "binary_commit=${COMMIT_HASH}"
         echo "shuffle_id=${shuffle_id}"
         echo "shuffle_seed=${SHUFFLE_SEED}"
-        echo "shuffle_fsize_list=${shuffle_fsize_list}"
+        echo "shuffle_tbase_list=${shuffle_tbase_list}"
         echo "walk_list=${walk_list}"
         sha256sum "${walk_list}" 2>/dev/null || true
     } > "${combo_dir}/meta.txt"
@@ -174,7 +167,7 @@ run_one(){
             { echo "binary_commit=${COMMIT_HASH}"; \
               echo "shuffle_id=${shuffle_id}"; \
               echo "shuffle_seed=${SHUFFLE_SEED}"; \
-              echo "shuffle_fsize_list=${shuffle_fsize_list}"; \
+              echo "shuffle_tbase_list=${shuffle_tbase_list}"; \
             mpirun --map-by core --bind-to core -np "${np}" "${BINARY}" \
                 --ta "${ta}" --tb "${ta}" \
                 --ntests "${NTESTS}" --ntiles "${NTILES}" --cut-p "${CUT_P}" \
@@ -190,7 +183,7 @@ main_preamble(){
     if [ "$#" -lt 1 ]; then
         echo "Usage:"
         echo "  $0 gen [NUM_WALK]"
-        echo "  $0 detect [WALK_LIST_CSV|all]"
+        echo "  $0 detect [all|WALK_LIST_CSV ...]"
         exit 1
     fi
 
@@ -198,56 +191,110 @@ main_preamble(){
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     PROJ_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
     WALK_ROOT="${WALK_ROOT:-${SCRIPT_DIR}/walklists}"
-    NUM_WALK="${2:-${NUM_WALK:-5}}"
+    
+    if [ "$MODE" = "gen" ]; then
+        NUM_WALK="${2:-${NUM_WALK:-20}}"
+    else
+        NUM_WALK="${NUM_WALK:-20}"
+    fi
 }
 
 main_preamble "$@"
 
-EXPR_NAME="detecting.expr2.fsize"
-OUT_KIND="expr2fsize"
-TBASE_NS="${TBASE_NS:-1000}"
-FSIZE_LIST="${FSIZE_LIST:-0 16 32 64 128 256 512 1024 2048 4096 8192}"
-# FSIZE_LIST="${FSIZE_LIST:-32 128 512 2048 8192}"
+EXPR_NAME="detecting.expr3.interval"
+OUT_KIND="expr3interval"
+TBASE_LIST="${TBASE_LIST:-1000 10000 100000 1000000}"
+FSIZE_KIB="${FSIZE_KIB:-0}"
 FKERN="${FKERN:-copy}"
 RKERN="${RKERN:-none}"
 RSIZE_KIB="${RSIZE_KIB:-0}"
 SHUFFLE_COUNT="${SHUFFLE_COUNT:-3}"
 SHUFFLE_SEED="${SHUFFLE_SEED:-0614}"
 
-walk_default(){ echo "${WALK_ROOT}/detecting_expr2_fsize_Normal_n${NUM_WALK}_tbase${TBASE_NS}.csv"; }
+walk_for_tbase(){ echo "${WALK_ROOT}/detecting_expr3_interval_Normal_n${NUM_WALK}_tbase${1}.csv"; }
 
 do_gen(){
-    gen_walklist "$(walk_default)" "${TBASE_NS}" "${NUM_WALK}"
+    for tbase in ${TBASE_LIST}; do
+        gen_walklist "$(walk_for_tbase "${tbase}")" "${tbase}" "${NUM_WALK}"
+    done
 }
 
 do_detect(){
-    local walk_list="${2:-$(walk_default)}"
-    [ "$walk_list" = "all" ] && walk_list="$(walk_default)"
-    [ -s "${walk_list}" ] || { echo "ERROR: missing walk list: ${walk_list}" >&2; exit 1; }
-    local walk_count walk_tag data_folder shuffle_idx shuffle_id shuffled_sizes combo
-    walk_count="$(read_walks "${walk_list}")"
-    walk_tag="${WALK_TAG:-walk${walk_count}}"
+    local requests=()
+    local walk_items=()
+    local walk_count first_count walk_tag requested tbase walk_list shuffle_idx shuffle_id shuffled_tbases
+
+    if [ "$#" -le 1 ] || [ "${2:-}" = "all" ]; then
+        requests=("all")
+    else
+        shift
+        requests=("$@")
+    fi
+
+    if [ "${#requests[@]}" -eq 1 ] && [ "${requests[0]}" = "all" ]; then
+        for tbase in ${TBASE_LIST}; do
+            walk_items+=("${tbase}:$(walk_for_tbase "${tbase}")")
+        done
+    else
+        for requested in "${requests[@]}"; do
+            [ "${requested}" != "all" ] || continue
+            tbase="$(basename "${requested}" | sed -n 's/.*tbase\([0-9][0-9]*\).*/\1/p')"
+            [ -n "${tbase}" ] || { echo "ERROR: cannot infer tbase from ${requested}" >&2; exit 1; }
+            walk_items+=("${tbase}:${requested}")
+        done
+    fi
+
+    first_count=""
+    for requested in "${walk_items[@]}"; do
+        walk_list="${requested#*:}"
+        [ -s "${walk_list}" ] || { echo "ERROR: missing walk list: ${walk_list}" >&2; exit 1; }
+        walk_count="$(read_walks "${walk_list}")"
+        if [ -z "${first_count}" ]; then
+            first_count="${walk_count}"
+        elif [ "${walk_count}" != "${first_count}" ]; then
+            first_count="mixed"
+        fi
+    done
+
+    if [ "${first_count}" = "mixed" ]; then
+        walk_tag="${WALK_TAG:-walkmixed}"
+    else
+        walk_tag="${WALK_TAG:-walk${first_count}}"
+    fi
     data_folder="${DATA_ROOT}/${DATE_BASE}/${HOSTNAME}/outputDetecting/${OUT_KIND}/${walk_tag}/${DATE_STAMP}"
     mkdir -p "${data_folder}/walklists"
     cp -f "$0" "${data_folder}/$(basename "$0")"
-    cp -f "${walk_list}" "${data_folder}/walklists/$(basename "${walk_list}")"
     echo "DATA_FOLDER: ${data_folder}"
+    
     {
         echo "expr_name=${EXPR_NAME}"
         echo "binary_commit=${COMMIT_HASH}"
         echo "shuffle_seed=${SHUFFLE_SEED}"
         echo "shuffle_count=${SHUFFLE_COUNT}"
-        echo "original_fsize_list=${FSIZE_LIST}"
+        echo "original_tbase_list=${TBASE_LIST}"
     } > "${data_folder}/shuffle.log"
+
     for shuffle_idx in $(seq 0 $((SHUFFLE_COUNT - 1))); do
         shuffle_id="shuffle${shuffle_idx}"
-        shuffled_sizes="$(shuffle_fsize_list "${shuffle_idx}" ${FSIZE_LIST})"
-        echo "${shuffle_id}_fsize_list=${shuffled_sizes}" | tee -a "${data_folder}/shuffle.log"
-        for np in ${NP_LIST}; do
-            for timer in ${TIMER_LIST}; do
-                for fsize in ${shuffled_sizes}; do
-                    combo="${data_folder}/${EXPR_NAME}.${shuffle_id}/np${np}/${timer}/interval${TBASE_NS}_fkern${FKERN}_rkern${RKERN}_fsize${fsize}_rsize${RSIZE_KIB}"
-                    run_one "${combo}" "${walk_list}" "${np}" "${timer}" "${FKERN}" "${fsize}" "${RKERN}" "${RSIZE_KIB}" "${TBASE_NS}" "${shuffle_id}" "${shuffled_sizes}"
+        shuffled_tbases="$(shuffle_list "${shuffle_idx}" ${TBASE_LIST})"
+        echo "${shuffle_id}_tbase_list=${shuffled_tbases}" | tee -a "${data_folder}/shuffle.log"
+        
+        for tbase in ${shuffled_tbases}; do
+            # find the walk list for this tbase
+            walk_list=""
+            for item in "${walk_items[@]}"; do
+                if [ "${item%%:*}" = "${tbase}" ]; then
+                    walk_list="${item#*:}"
+                    break
+                fi
+            done
+            [ -n "${walk_list}" ] || { echo "ERROR: walk list not found for tbase ${tbase}" >&2; continue; }
+            cp -f "${walk_list}" "${data_folder}/walklists/$(basename "${walk_list}")" 2>/dev/null || true
+            
+            for np in ${NP_LIST}; do
+                for timer in ${TIMER_LIST}; do
+                    combo="${data_folder}/${EXPR_NAME}.${shuffle_id}/np${np}/${timer}/interval${tbase}_fkern${FKERN}_rkern${RKERN}_fsize${FSIZE_KIB}_rsize${RSIZE_KIB}"
+                    run_one "${combo}" "${walk_list}" "${np}" "${timer}" "${FKERN}" "${FSIZE_KIB}" "${RKERN}" "${RSIZE_KIB}" "${tbase}" "${shuffle_id}" "${shuffled_tbases}"
                 done
             done
         done
