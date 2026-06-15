@@ -371,12 +371,15 @@ static inline uint64_t dsub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
 }
 
 
-static inline uint64_t dsub_loop_c(uint64_t ra, uint64_t rb, uint64_t lower) {
+static __attribute__((noinline)) uint64_t dsub_loop_c(uint64_t ra, uint64_t rb, uint64_t lower) {
+    volatile uint64_t vra = ra;
+    const uint64_t vrb = rb;
+    const uint64_t vlower = lower;
     do {
-        ra -= rb;
-        ra -= rb;
-    } while (ra > lower);
-    return ra;
+        vra -= vrb;
+        vra -= vrb;
+    } while (vra > vlower);
+    return vra;
 }
 
 
