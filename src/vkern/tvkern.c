@@ -332,6 +332,45 @@ static inline uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
 }
 
 
+static inline uint64_t dsub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
+#if defined(__x86_64__)
+    __asm__ __volatile__(
+        "1:\n\t"
+        "subq %[rb], %[ra]\n\t"
+        "subq %[rb], %[ra]\n\t"
+        "cmpq %[lower], %[ra]\n\t"
+        "ja 1b\n\t"
+        : [ra] "+&r"(ra)
+        : [rb] "r"(rb),
+        [lower] "r"(lower)
+        : "cc"
+    );
+    return ra;
+
+#elif defined(__aarch64__)
+    __asm__ __volatile__(
+        "1:\n\t"
+        "sub %[ra], %[ra], %[rb]\n\t"
+        "sub %[ra], %[ra], %[rb]\n\t"
+        "cmp %[ra], %[lower]\n\t"
+        "b.hi 1b\n\t"
+        : [ra] "+&r"(ra)
+        : [rb] "r"(rb),
+        [lower] "r"(lower)
+        : "cc"
+    );
+    return ra;
+
+#else
+    do {
+        ra -= rb;
+        ra -= rb;
+    } while (ra > lower);
+    return ra;
+#endif
+}
+
+
 static inline uint64_t run_tvkern(uint64_t iters, uint64_t rb, uint64_t lower)
 {
     uint64_t ra = iters * rb;
@@ -339,18 +378,12 @@ static inline uint64_t run_tvkern(uint64_t iters, uint64_t rb, uint64_t lower)
         return ra;
     }
 
-    // __asm__ __volatile__(
-    //     "1:\n\t"
-    //     "subq %[rb], %[ra]\n\t"
-    //     "subq %[rb], %[ra]\n\t"
-    //     "cmpq %[lower], %[ra]\n\t"
-    //     "ja 1b\n\t"
-    //     : [ra] "+&r"(ra)
-    //     : [rb] "r"(rb),
-    //       [lower] "r"(lower)
-    //     : "cc"
-    // );
+#if defined(INSITU_DSUB_ASM)
+    ra = iters * rb * 2;
+    dsub_loop(ra, rb, lower);
+#else
     sub_loop(ra, rb, lower);
+#endif
     return ra;
 }
 
