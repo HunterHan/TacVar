@@ -237,6 +237,43 @@ __attribute__((noinline)) uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t l
 #endif
 }
 
+static inline uint64_t dsub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
+#if defined(__x86_64__)
+    __asm__ __volatile__(
+        "1:\n\t"
+        "subq %[rb], %[ra]\n\t"
+        "subq %[rb], %[ra]\n\t"
+        "cmpq %[lower], %[ra]\n\t"
+        "ja 1b\n\t"
+        : [ra] "+&r"(ra)
+        : [rb] "r"(rb),
+          [lower] "r"(lower)
+        : "cc"
+    );
+    return ra;
+#elif defined(__aarch64__)
+    __asm__ __volatile__(
+        "1:\n\t"
+        "sub %[ra], %[ra], %[rb]\n\t"
+        "sub %[ra], %[ra], %[rb]\n\t"
+        "cmp %[ra], %[lower]\n\t"
+        "b.hi 1b\n\t"
+        : [ra] "+&r"(ra)
+        : [rb] "r"(rb),
+          [lower] "r"(lower)
+        : "cc"
+    );
+    return ra;
+#else
+    do {
+        ra -= rb;
+        ra -= rb;
+    } while (ra > lower);
+    return ra;
+#endif
+}
+
+
 int
 main(int argc, char **argv) {
     uint64_t ntest;
@@ -544,9 +581,16 @@ main(int argc, char **argv) {
 
 #endif
             register uint64_t rb = rb_step;
-            register uint64_t ra = nsamp * rb;
+            register uint64_t ra;
             register uint64_t lower = ra_lower_boundary;
+#ifdef INSITU_SUB_ASM
+            ra = nsamp * rb;
             sub_loop(ra, rb, lower);
+#endif
+#ifdef INSITU_DSUB_ASM
+            ra = nsamp * rb * 2;
+            dsub_loop(ra, rb, lower);
+#endif
 #endif
 
 #ifdef TIMING
