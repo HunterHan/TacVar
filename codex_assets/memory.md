@@ -218,6 +218,16 @@ Recorded after the 2026-06-15 tvkern dsub / MPI_Wtime RCA work. These rules are 
 - In Plan Mode, only perform non-mutating exploration. Do not edit files, commit, launch full experiments, or patch remote scripts until Default mode resumes.
 - When the user asks to commit the whole TacVar worktree, interpret it as `git add -A` from `~/code/TacVar`, after recording `git status --short` for audit.
 
+
+## Harness Engineering: tvkern dsub / KP920B cgt RCA Notes
+
+Recorded during the 2026-06-16 tvkern 0615 cleanup. Keep these notes attached to future tvkern/filt reruns.
+
+- KP920B/c920bn3 `cgt` bug sample: `/astrum/home/hpchzy/code/data/20260615/c920bn3/output_tvkern_filt_dsub/20260615-214143-tvkern-dsub-logfix/` showed `cgt wd_med` around 21-22 across shuffle0/1/2, while same-run `cntvct/cntvcto/wtime/papi/papix6` were mostly around 4-10.
+- Earlier reference path: `/astrum/home/hpchzy/code/data/20260615/c920bn3/output_tvkern_filt_dsub/20260615-141629-tvkern-dsub/` had `cgt wd_med` around 3.5-4.5, but lacked script-level run start/end timestamp and command logging, used older NSPV handling, and still had KP `wtime/papix6` risk.
+- Working RCA hypothesis: the `cgt` regression was triggered when `dsub_loop` / `sub_loop` work was wrapped into a return-value helper and the returned value was attached to `sink`; for `INSITU_DSUB_ASM`, keep the old-style void asm call path unless a controlled smoke test proves a replacement is equivalent on KP920B.
+- Plot notebook path hygiene: when replacing paths, keep old paths commented with a short bug reason, and verify notebook source, not only cell output. A previous run had source paths reverted to old `141629` while output still showed newer paths.
+
 ## Harness Engineering: Remote Command Smoothness
 
 Recorded after the 2026-06-15 detecting expr3/expr4 0614 work. These rules prevent repeated Codex/remote-shell friction.

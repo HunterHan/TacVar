@@ -332,7 +332,7 @@ static inline uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
 }
 
 
-static inline uint64_t dsub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
+static inline void dsub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
 #if defined(__x86_64__)
     __asm__ __volatile__(
         "1:\n\t"
@@ -345,7 +345,6 @@ static inline uint64_t dsub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
         [lower] "r"(lower)
         : "cc"
     );
-    return ra;
 
 #elif defined(__aarch64__)
     __asm__ __volatile__(
@@ -359,14 +358,12 @@ static inline uint64_t dsub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
         [lower] "r"(lower)
         : "cc"
     );
-    return ra;
 
 #else
     do {
         ra -= rb;
         ra -= rb;
     } while (ra > lower);
-    return ra;
 #endif
 }
 
@@ -391,28 +388,6 @@ static inline uint64_t dsub_split_loop(uint64_t ra, uint64_t rb, uint64_t lower)
     return ra;
 }
 
-
-static inline uint64_t run_tvkern(uint64_t iters, uint64_t rb, uint64_t lower)
-{
-    uint64_t ra = iters * rb;
-    if (ra <= lower) {
-        return ra;
-    }
-
-#if defined(INSITU_DSUB_ASM)
-    ra = iters * rb * 2;
-    ra = dsub_loop(ra, rb, lower);
-#elif defined(INSITU_DSUB_C_FALLBACK)
-    ra = iters * rb * 2;
-    ra = dsub_loop_c(ra, rb, lower);
-#elif defined(INSITU_DSUB_SPLIT_ASM)
-    ra = iters * rb * 2;
-    ra = dsub_split_loop(ra, rb, lower);
-#else
-    ra = sub_loop(ra, rb, lower);
-#endif
-    return ra;
-}
 
 
 int
@@ -562,7 +537,19 @@ main(int argc, char **argv) {
     clock_gettime(CLOCK_MONOTONIC, &tv);
     uint64_t warm_until = (uint64_t)tv.tv_sec * 1000000000ull + tv.tv_nsec + NWARM * 1000000ull;
     while ((uint64_t)tv.tv_sec * 1000000000ull + tv.tv_nsec < warm_until) {
-        sink += run_tvkern(NPRECALC, rb_step, 0);
+#if defined(INSITU_DSUB_ASM)
+        uint64_t ra = NPRECALC * rb_step * 2;
+        dsub_loop(ra, rb_step, 0);
+#elif defined(INSITU_DSUB_C_FALLBACK)
+        uint64_t ra = NPRECALC * rb_step * 2;
+        sink += dsub_loop_c(ra, rb_step, 0);
+#elif defined(INSITU_DSUB_SPLIT_ASM)
+        uint64_t ra = NPRECALC * rb_step * 2;
+        sink += dsub_split_loop(ra, rb_step, 0);
+#else
+        uint64_t ra = NPRECALC * rb_step;
+        sink += sub_loop(ra, rb_step, 0);
+#endif
         clock_gettime(CLOCK_MONOTONIC, &tv);
     }
 
@@ -576,7 +563,27 @@ main(int argc, char **argv) {
         if (npf) {
             flush_cache(pf_a, pf_b, pf_c, npf);
         }
-        sink += run_tvkern(NPRECALC, rb_step, 0);
+#if defined(INSITU_DSUB_ASM)
+        {
+            uint64_t ra = NPRECALC * rb_step * 2;
+            dsub_loop(ra, rb_step, 0);
+        }
+#elif defined(INSITU_DSUB_C_FALLBACK)
+        {
+            uint64_t ra = NPRECALC * rb_step * 2;
+            sink += dsub_loop_c(ra, rb_step, 0);
+        }
+#elif defined(INSITU_DSUB_SPLIT_ASM)
+        {
+            uint64_t ra = NPRECALC * rb_step * 2;
+            sink += dsub_split_loop(ra, rb_step, 0);
+        }
+#else
+        {
+            uint64_t ra = NPRECALC * rb_step;
+            sink += sub_loop(ra, rb_step, 0);
+        }
+#endif
 
 #ifdef USE_PAPI
         ns0 = PAPI_get_real_nsec();
@@ -602,7 +609,38 @@ main(int argc, char **argv) {
         _mfence;
 #endif
 
-        sink += run_tvkern(work, rb_step, lower);
+#if defined(INSITU_DSUB_ASM)
+        {
+            uint64_t ra = work * rb_step;
+            if (ra > lower) {
+                ra = work * rb_step * 2;
+                dsub_loop(ra, rb_step, lower);
+            }
+        }
+#elif defined(INSITU_DSUB_C_FALLBACK)
+        {
+            uint64_t ra = work * rb_step;
+            if (ra > lower) {
+                ra = work * rb_step * 2;
+                sink += dsub_loop_c(ra, rb_step, lower);
+            }
+        }
+#elif defined(INSITU_DSUB_SPLIT_ASM)
+        {
+            uint64_t ra = work * rb_step;
+            if (ra > lower) {
+                ra = work * rb_step * 2;
+                sink += dsub_split_loop(ra, rb_step, lower);
+            }
+        }
+#else
+        {
+            uint64_t ra = work * rb_step;
+            if (ra > lower) {
+                sink += sub_loop(ra, rb_step, lower);
+            }
+        }
+#endif
 
 #ifdef USE_PAPI
         ns1 = PAPI_get_real_nsec();
