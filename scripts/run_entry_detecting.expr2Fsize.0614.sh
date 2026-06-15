@@ -3,6 +3,7 @@ set -u
 
 
 initialize(){
+    return 0
     local cpu_freq=$1
     if [ -e /sys/devices/system/cpu/cpufreq/boost ]; then
         echo 0 | sudo tee /sys/devices/system/cpu/cpufreq/boost >/dev/null 2>/dev/null || true
@@ -17,6 +18,7 @@ initialize(){
 }
 
 cleanup(){
+    return 0
     sudo cpupower frequency-set -g schedutil
     if [ -e /sys/devices/system/cpu/intel_pstate/no_turbo ]; then
         echo 0 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo >/dev/null 2>/dev/null || true
@@ -198,7 +200,7 @@ main_preamble(){
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     PROJ_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
     WALK_ROOT="${WALK_ROOT:-${SCRIPT_DIR}/walklists}"
-    NUM_WALK="${2:-${NUM_WALK:-5}}"
+    if [ "$MODE" = "gen" ]; then NUM_WALK="${2:-${NUM_WALK:-20}}"; else NUM_WALK="${NUM_WALK:-20}"; fi
 }
 
 main_preamble "$@"

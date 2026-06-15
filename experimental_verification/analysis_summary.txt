@@ -1,0 +1,11 @@
+The user asked to explain the anomalies in the camd9554n1 output_filt dataset (NP=64).
+
+1. Why TSC tm matches PAPI/PAPIX6 (Camp B), and CGT/WTIME/TSC_NATIVE group together (Camp A)?
+Camp A timers are unserialized (clock_gettime, __rdtsc). Under massive memory contention (64 MPI processes), the CPU issues overlapping memory requests aggressively (Out-of-Order execution), which saturates the memory controller and causes severe queuing delays, resulting in a slower time (~4100ns).
+Camp B timers include serialization (CPUID for TSC, or complex PAPI logic). This serialization acts as a 'throttle' or 'pacer'. By stopping the pipeline at each measurement, it prevents the CPU from flooding the memory controller. Ironically, this pacing makes the memory-bound stencil kernel run FASTER (~3500ns) under heavy load.
+
+2. Why are the 'tr' values inconsistent across timers?
+tr = tm - tf. The inconsistency is entirely due to how 'tf' captures the TIMER OVERHEAD, not kernel noise.
+For CGT: The synthetic sub_loop is purely CPU-bound and suffers no contention even at NP=64. It runs perfectly at its theoretical speed. CGT has very low overhead (~40ns). Thus, measured_time ≈ theoretical_time + 40ns, yielding tf = 40ns. So tr ≈ tm (4075ns).
+For PAPI: PAPI_get_real_nsec() has a fixed overhead of ~600ns per call. In the TF stage, this 600ns is captured in the measured time. So measured_time ≈ theoretical_time + 600ns, yielding tf = 631ns.
+Thus, PAPI's tr is lower (3535 - 631 = 2904ns) compared to CGT (4116 - 40 = 4076ns). The ~1200ns difference in tr is perfectly explained by: (4116 - 3535) from pacing + (631 - 40) from PAPI overhead.

@@ -207,6 +207,17 @@ Note: the correct third hostname is `cgnr6760pn2`, not `cngr6760pn2`.
     - Plot manually downloaded data on `af309` with `scripts_plot/assess_expr1_fsize_manual_plot.ipynb`; edit the parameter cell for `DATA_ROOT`, `DATE`, `HOSTS`, `EXPRS`, `OUTPUT_DIR`, expected samples, fsize list, and optional batch selection.
 - Defer gpns/abort stabilization until a data run actually fails.
 
+
+## Harness Engineering: Codex Operating Mode
+
+Recorded after the 2026-06-15 tvkern dsub / MPI_Wtime RCA work. These rules are persistent defaults for future TacVar sessions.
+
+- For TacVar experiments, remote harness work, and data/RCA debugging, always load and follow the `superpowers` and `pua` skills by default. Do not wait for the user to repeat this prompt.
+- For debug or unexpected experimental results, use RCA discipline: state the hypothesis, identify the evidence needed to falsify it, run the smallest controlled validation, and report evidence before conclusion.
+- Use PUA/Huawei-style evidence discipline for experiments: no completion claim without command output, counts, paths, commit hash, and residual-risk boundary.
+- In Plan Mode, only perform non-mutating exploration. Do not edit files, commit, launch full experiments, or patch remote scripts until Default mode resumes.
+- When the user asks to commit the whole TacVar worktree, interpret it as `git add -A` from `~/code/TacVar`, after recording `git status --short` for audit.
+
 ## Harness Engineering: Remote Command Smoothness
 
 Recorded after the 2026-06-15 detecting expr3/expr4 0614 work. These rules prevent repeated Codex/remote-shell friction.

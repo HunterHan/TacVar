@@ -367,10 +367,10 @@ main(int argc, char **argv) {
 
 #ifdef USE_PAPI
     // Init PAPI
-    // int eventset = PAPI_NULL;
-    // PAPI_library_init(PAPI_VER_CURRENT);
-    // PAPI_create_eventset(&eventset);
-    // PAPI_start(eventset);
+    int eventset = PAPI_NULL;
+    PAPI_library_init(PAPI_VER_CURRENT);
+    PAPI_create_eventset(&eventset);
+    PAPI_start(eventset);
     
 #elif USE_PAPIX6
     // Init PAPI
@@ -463,14 +463,16 @@ main(int argc, char **argv) {
             ns0 = PAPI_get_real_nsec();
 
 #elif USE_PAPIX6
-            ns0 = PAPI_get_real_nsec();
             PAPI_read(eventset, ev_vals_0);
+            ns0 = PAPI_get_real_nsec();
 
 #elif USE_CGT
+            // asm volatile("cpuid" ::: "rax", "rbx", "rcx", "rdx", "memory");
             clock_gettime(CLOCK_MONOTONIC, &tv);
             ns0 = tv.tv_sec * 1e9 + tv.tv_nsec;
 
 #elif USE_WTIME
+            // asm volatile("cpuid" ::: "rax", "rbx", "rcx", "rdx", "memory");
             ns0 = (uint64_t)(MPI_Wtime() * 1e9);
 
 #elif USE_CNTVCT
@@ -509,14 +511,17 @@ main(int argc, char **argv) {
             ns0 = PAPI_get_real_nsec();
 
 #elif USE_PAPIX6
-            ns0 = PAPI_get_real_nsec();
             PAPI_read(eventset, ev_vals_0);
+            ns0 = PAPI_get_real_nsec();
+
 
 #elif USE_CGT
+            // asm volatile("cpuid" ::: "rax", "rbx", "rcx", "rdx", "memory");
             clock_gettime(CLOCK_MONOTONIC, &tv);
             ns0 = tv.tv_sec * 1e9 + tv.tv_nsec;
 
 #elif USE_WTIME
+            // asm volatile("cpuid" ::: "rax", "rbx", "rcx", "rdx", "memory");
             ns0 = (uint64_t)(MPI_Wtime() * 1e9);
 
 #elif USE_CNTVCT
@@ -541,7 +546,7 @@ main(int argc, char **argv) {
             register uint64_t rb = rb_step;
             register uint64_t ra = nsamp * rb;
             register uint64_t lower = ra_lower_boundary;
-            ra_res += sub_loop(ra, rb, lower);
+            sub_loop(ra, rb, lower);
 #endif
 
 #ifdef TIMING
@@ -560,11 +565,13 @@ main(int argc, char **argv) {
 
 #elif USE_CGT
             clock_gettime(CLOCK_MONOTONIC, &tv);
+            // asm volatile("cpuid" ::: "rax", "rbx", "rcx", "rdx", "memory");
             ns1 = tv.tv_sec * 1e9 + tv.tv_nsec;
             p_ns[it*narr+j] = ns1 - ns0;
 
 #elif USE_WTIME
             ns1 = (uint64_t)(MPI_Wtime() * 1e9);
+            // asm volatile("cpuid" ::: "rax", "rbx", "rcx", "rdx", "memory");
             p_ns[it*narr+j] = ns1 - ns0;
 
 #elif USE_CNTVCT
@@ -600,12 +607,12 @@ main(int argc, char **argv) {
 #endif
 
 #endif
-            // for (uint64_t k = 0; k < narr; k ++) {
-            //     pw = pw + w[j][k] * p[j][k];
-            // }
-            // if (nrank > 1) {
-            //     MPI_Allreduce(&pw, &pw, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-            // }
+            for (uint64_t k = 0; k < narr; k ++) {
+                pw = pw + w[j][k] * p[j][k];
+            }
+            if (nrank > 1) {
+                MPI_Allreduce(&pw, &pw, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+            }
         }
     }
 
@@ -615,8 +622,8 @@ main(int argc, char **argv) {
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-// #if defined(USE_PAPI) || defined(USE_PAPIX6)
-#if defined(USE_PAPIX6)
+#if defined(USE_PAPI) || defined(USE_PAPIX6)
+// #if defined(USE_PAPIX6)
     PAPI_shutdown();
 
 #elif USE_LIKWID
