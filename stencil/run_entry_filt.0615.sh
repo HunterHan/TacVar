@@ -156,6 +156,7 @@ if [ "$PREWARM" = "1" ]; then
 fi
 
 FILTER_ROOT="${PROJ_ROOT}/src/filter"
+STENCIL_ROOT="${PROJ_ROOT}/stencil"
 if [ -x "$HOME/miniconda3/bin/python" ]; then
     PYTHON=${PYTHON:-"$HOME/miniconda3/bin/python"}
 elif [ -x "$HOME/miniconda/bin/python" ]; then
@@ -230,6 +231,7 @@ printf 'ARCH: %s\nHOSTNAME: %s\nDATA_FOLDER: %s\nKERNEL_LIST: %s\nNP_LIST: %s\nT
 
 mkdir -p "$DATA_FOLDER"
 write_root_meta "$DATA_FOLDER"
+cd "${STENCIL_ROOT}"
 rm -f ./*.x ./*.csv
 mpicc -O2 -Wall -o "${FILTER_ROOT}/filt.x" "${FILTER_ROOT}/filt_v2.0608.c"
 

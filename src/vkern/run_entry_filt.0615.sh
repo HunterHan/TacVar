@@ -150,6 +150,7 @@ CFLAGS="-O2 -Wall -g"
 BASE_CFLAGS="$CFLAGS"
 
 FILTER_ROOT="${PROJ_ROOT}/src/filter"
+VKERN_ROOT="${PROJ_ROOT}/src/vkern"
 if [ -x "$HOME/miniconda3/bin/python" ]; then
     PYTHON=${PYTHON:-"$HOME/miniconda3/bin/python"}
 else
@@ -271,6 +272,7 @@ fi
 
 mkdir -p "$DATA_FOLDER"
 write_root_meta "$DATA_FOLDER"
+cd "${VKERN_ROOT}"
 rm -f ./*.x ./*.csv
 
 mpicc -O2 -Wall -o "${FILTER_ROOT}/filt.x" "${FILTER_ROOT}/filt_v2.0608.c"
