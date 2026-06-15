@@ -5,9 +5,15 @@ SCRIPT_START_EPOCH=$(date +%s)
 SCRIPT_START_ISO=$(date -Is)
 SCRIPT_CMD="$0${*:+ $*}"
 LOG_CAPTURED=0
-
-: "${PROJ_ROOT:?PROJ_ROOT is not set! Please source env.bash !}"
-: "${DATA_ROOT:?DATA_ROOT is not set! Please source env.bash !}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJ_ROOT="${PROJ_ROOT:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
+if [ -f "${PROJ_ROOT}/env.bash" ]; then
+    set +u
+    source "${PROJ_ROOT}/env.bash"
+    set -u
+fi
+PROJ_ROOT="${PROJ_ROOT:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
+DATA_ROOT="${DATA_ROOT:-${HOME}/code/data}"
 
 initialize(){
     local cpu_freq=$1
