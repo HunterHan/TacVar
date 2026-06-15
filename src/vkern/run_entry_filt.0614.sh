@@ -1,6 +1,11 @@
 #!/bin/bash -x
 set -euo pipefail
 
+SCRIPT_START_EPOCH=$(date +%s)
+SCRIPT_START_ISO=$(date -Is)
+SCRIPT_CMD="$0${*:+ $*}"
+LOG_CAPTURED=0
+
 : "${PROJ_ROOT:?PROJ_ROOT is not set! Please source env.bash !}"
 : "${DATA_ROOT:?DATA_ROOT is not set! Please source env.bash !}"
 
@@ -62,6 +67,9 @@ write_root_meta(){
     mkdir -p "${data_folder}"
     {
         echo "script=$(realpath "$0")"
+        echo "run_start_time=${SCRIPT_START_ISO}"
+        echo "run_command=${SCRIPT_CMD}"
+        echo "run_log=${data_folder}/run.log"
         echo "script_sha256=$(sha256sum "$0" 2>/dev/null | awk '{print $1}')"
         echo "binary_commit=${COMMIT_HASH}"
         echo "git_status_begin"
@@ -104,8 +112,33 @@ write_shuffle_meta(){
     } > "${shuffle_dir}/meta.txt"
 }
 
-trap 'echo "ERR"' ERR
-trap cleanup EXIT
+start_run_log(){
+    mkdir -p "${DATA_FOLDER}"
+    if [ "${LOG_CAPTURED}" = "0" ]; then
+        LOG_CAPTURED=1
+        exec > >(tee -a "${DATA_FOLDER}/run.log") 2>&1
+    fi
+    echo "[harness] start_time=${SCRIPT_START_ISO}"
+    echo "[harness] command=${SCRIPT_CMD}"
+    echo "[harness] cwd=$(pwd)"
+    echo "[harness] pid=$$ ppid=$PPID"
+}
+
+finish_run(){
+    local status=$?
+    local end_epoch
+    local end_iso
+    end_epoch=$(date +%s)
+    end_iso=$(date -Is)
+    echo "[harness] end_time=${end_iso}"
+    echo "[harness] exit_status=${status}"
+    echo "[harness] elapsed_sec=$((end_epoch - SCRIPT_START_EPOCH))"
+    cleanup
+    exit "${status}"
+}
+
+trap 'status=$?; echo "[harness] ERR status=${status} line=${LINENO} command=${BASH_COMMAND}"' ERR
+trap finish_run EXIT
 
 CFLAGS="-O2 -Wall -g"
 BASE_CFLAGS="$CFLAGS"
@@ -186,6 +219,7 @@ if [ "$ARCH" = "x86_64" ]; then
     : "${LIKWID_HOME:?LIKWID_HOME is not set}"
 fi
 
+start_run_log
 cleanup_residual_processes
 initialize "$CPU_FREQ"
 CPU_FREQ_KHZ_REAL=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq)
@@ -313,5 +347,3 @@ for shuffle_idx in $(seq 0 $((SHUFFLE_COUNT - 1))); do
 done
 
 done
-
-cleanup
