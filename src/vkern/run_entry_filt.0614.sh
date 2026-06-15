@@ -80,6 +80,7 @@ write_root_meta(){
         echo "nsamp=${NSAMP:-}"
         echo "nsamp_ratio_list=${NSAMP_RATIO_LIST:-}"
         echo "insitu=${INSITU}"
+        echo "insitu_tag=${INSITU_TAG}"
         echo "nspv=${NSPV:-}"
         echo "theoretical_nspv_factor=${THEORETICAL_NSPV_FACTOR:-}"
         echo "effective_nspv=${EFFECTIVE_NSPV:-}"
@@ -97,6 +98,7 @@ write_shuffle_meta(){
         echo "shuffle_id=${shuffle_id}"
         echo "shuffle_timer_list=${shuffled_timers}"
         echo "insitu=${INSITU}"
+        echo "insitu_tag=${INSITU_TAG}"
         echo "theoretical_nspv_factor=${THEORETICAL_NSPV_FACTOR:-}"
         echo "effective_nspv=${EFFECTIVE_NSPV:-}"
     } > "${shuffle_dir}/meta.txt"
@@ -118,8 +120,26 @@ fi
 KERNEL=tvkern
 INSITU=${INSITU:-INSITU_DSUB_ASM}
 case "${INSITU}" in
-    INSITU_DSUB_ASM) THEORETICAL_NSPV_FACTOR=${THEORETICAL_NSPV_FACTOR:-2} ;;
-    *) THEORETICAL_NSPV_FACTOR=${THEORETICAL_NSPV_FACTOR:-1} ;;
+    INSITU_SUB_ASM)
+        INSITU_TAG=${INSITU_TAG:-sub}
+        THEORETICAL_NSPV_FACTOR=${THEORETICAL_NSPV_FACTOR:-1}
+        ;;
+    INSITU_DSUB_ASM)
+        INSITU_TAG=${INSITU_TAG:-dsub}
+        THEORETICAL_NSPV_FACTOR=${THEORETICAL_NSPV_FACTOR:-2}
+        ;;
+    INSITU_DSUB_C_FALLBACK)
+        INSITU_TAG=${INSITU_TAG:-dsub-c-fallback}
+        THEORETICAL_NSPV_FACTOR=${THEORETICAL_NSPV_FACTOR:-2}
+        ;;
+    INSITU_DSUB_SPLIT_ASM)
+        INSITU_TAG=${INSITU_TAG:-dsub-split-asm}
+        THEORETICAL_NSPV_FACTOR=${THEORETICAL_NSPV_FACTOR:-2}
+        ;;
+    *)
+        INSITU_TAG=${INSITU_TAG:-custom}
+        THEORETICAL_NSPV_FACTOR=${THEORETICAL_NSPV_FACTOR:-1}
+        ;;
 esac
 BINW_MIN=${BINW_MIN:-10}
 P_LOW=${P_LOW:-0.01}
@@ -148,8 +168,8 @@ fi
 ARCH=$(uname -m)
 HOSTNAME=$(hostname -s 2>/dev/null || hostname)
 DATE_BASE=${DATE_BASE:-$(date +%Y%m%d)}
-DATE_STAMP=${DATE_STAMP:-$(date +%Y%m%d-%H%M%S)-tvkern-dsub}
-DATA_FOLDER="${DATA_ROOT}/${DATE_BASE}/${HOSTNAME}/output_tvkern_filt_dsub/${DATE_STAMP}"
+DATE_STAMP=${DATE_STAMP:-$(date +%Y%m%d-%H%M%S)-tvkern-${INSITU_TAG}}
+DATA_FOLDER="${DATA_ROOT}/${DATE_BASE}/${HOSTNAME}/output_tvkern_filt_${INSITU_TAG}/${DATE_STAMP}"
 COMMIT_HASH=${COMMIT_HASH:-$(git -C "${PROJ_ROOT}" rev-parse HEAD 2>/dev/null || echo unknown)}
 
 case $HOSTNAME in
@@ -192,6 +212,7 @@ echo "RB_STEP: $RB_STEP"
 echo "NTEST: $NTEST"
 echo "TVKERN_DIST_CFLAGS: $TVKERN_DIST_CFLAGS"
 echo "INSITU: $INSITU"
+echo "INSITU_TAG: $INSITU_TAG"
 echo "SHUFFLE_COUNT: $SHUFFLE_COUNT"
 echo "SHUFFLE_SEED: $SHUFFLE_SEED"
 echo "COMMIT_HASH: $COMMIT_HASH"
@@ -279,6 +300,7 @@ for shuffle_idx in $(seq 0 $((SHUFFLE_COUNT - 1))); do
                     echo "shuffle_seed=${SHUFFLE_SEED}"
                     echo "shuffle_timer_list=${shuffled_timers}"
                     echo "insitu=${INSITU}"
+                    echo "insitu_tag=${INSITU_TAG}"
                     echo "nspv=${NSPV}"
                     echo "theoretical_nspv_factor=${THEORETICAL_NSPV_FACTOR}"
                     echo "effective_nspv=${EFFECTIVE_NSPV}"
