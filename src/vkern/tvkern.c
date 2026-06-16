@@ -296,7 +296,7 @@ gen_walklist(uint64_t *len_list) {
 }
 
 
-static inline uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
+static __attribute__((noinline)) uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
 #if defined(__x86_64__)
     __asm__ __volatile__(
         "1:\n\t"
@@ -332,7 +332,7 @@ static inline uint64_t sub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
 }
 
 
-static inline void dsub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
+static __attribute__((noinline)) void dsub_loop(uint64_t ra, uint64_t rb, uint64_t lower) {
 #if defined(__x86_64__)
     __asm__ __volatile__(
         "1:\n\t"
