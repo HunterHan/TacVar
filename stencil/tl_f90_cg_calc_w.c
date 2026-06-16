@@ -153,7 +153,7 @@ static inline uint64_t
 read_cntvct(void)
 {
     uint64_t ticks;
-    __asm__ __volatile__("mrs %0, cntvct_el0" : "=r"(ticks));
+    asm volatile("isb; mrs %0, cntvct_el0" : "=r"(ticks) :: "memory");
     return ticks;
 }
 
@@ -161,12 +161,7 @@ static inline uint64_t
 read_cntvcto_start(void)
 {
     uint64_t ticks;
-    __asm__ __volatile__("isb\n\t"
-                         "mrs %0, cntvct_el0\n\t"
-                         "isb"
-                         : "=r"(ticks)
-                         :
-                         : "memory");
+    asm volatile("dsb sy; isb; mrs %0, cntvct_el0" : "=r"(ticks) :: "memory");
     return ticks;
 }
 
@@ -174,7 +169,7 @@ static inline uint64_t
 read_cntvcto_stop(void)
 {
     uint64_t ticks;
-    __asm__ __volatile__("mrs %0, cntvct_el0" : "=r"(ticks) :: "memory");
+    asm volatile("isb; mrs %0, cntvct_el0; dsb sy; isb" : "=r"(ticks) :: "memory");
     return ticks;
 }
 
@@ -541,6 +536,17 @@ main(int argc, char **argv) {
             }
 
 #ifdef STAGE_TF
+#ifdef INSITU_DSUB_ASM
+            {
+                uint64_t ra_pre = rb_step * 2;
+                dsub_loop(ra_pre, rb_step, 0);
+            }
+#elif defined(INSITU_SUB_ASM)
+            {
+                uint64_t ra_pre = rb_step;
+                sub_loop(ra_pre, rb_step, 0);
+            }
+#endif
 #ifdef TIMING
 
 // Timing.
@@ -588,8 +594,11 @@ main(int argc, char **argv) {
             sub_loop(ra, rb, lower);
 #endif
 #ifdef INSITU_DSUB_ASM
-            ra = nsamp * rb * 2;
-            dsub_loop(ra, rb, lower);
+            ra = nsamp * rb;
+            if (ra > lower) {
+                ra = nsamp * rb * 2;
+                dsub_loop(ra, rb, lower);
+            }
 #endif
 #endif
 

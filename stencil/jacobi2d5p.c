@@ -159,7 +159,7 @@ static inline uint64_t
 read_cntvct(void)
 {
     uint64_t ticks;
-    __asm__ __volatile__("mrs %0, cntvct_el0" : "=r"(ticks));
+    asm volatile("isb; mrs %0, cntvct_el0" : "=r"(ticks) :: "memory");
     return ticks;
 }
 
@@ -167,12 +167,7 @@ static inline uint64_t
 read_cntvcto_start(void)
 {
     uint64_t ticks;
-    __asm__ __volatile__("isb\n\t"
-                         "mrs %0, cntvct_el0\n\t"
-                         "isb"
-                         : "=r"(ticks)
-                         :
-                         : "memory");
+    asm volatile("dsb sy; isb; mrs %0, cntvct_el0" : "=r"(ticks) :: "memory");
     return ticks;
 }
 
@@ -180,7 +175,7 @@ static inline uint64_t
 read_cntvcto_stop(void)
 {
     uint64_t ticks;
-    __asm__ __volatile__("mrs %0, cntvct_el0" : "=r"(ticks) :: "memory");
+    asm volatile("isb; mrs %0, cntvct_el0; dsb sy; isb" : "=r"(ticks) :: "memory");
     return ticks;
 }
 
@@ -327,15 +322,6 @@ main(int argc, char **argv) {
     }
 #endif
 
-#if defined(__x86_64__)
-    tsc_ns = calibrate_ns_per_tsc();
-    if (myrank == 0) {
-        printf("Calibrated TSC frequency: %f GHz\n", 1e0 / tsc_ns);
-    }
-
-#endif
-
-
 
     x = (double **)malloc(narr * sizeof(double*));
     y = (double **)malloc(narr * sizeof(double*));
@@ -358,6 +344,12 @@ main(int argc, char **argv) {
     init_cntvct_freq();
 #endif
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+#if defined(__x86_64__)
+    tsc_ns = calibrate_ns_per_tsc();
+    if (myrank == 0) {
+        printf("Calibrated TSC frequency: %f GHz\n", 1e0 / tsc_ns);
+    }
+#endif
 
     
     if (myrank == 0) {
@@ -534,6 +526,17 @@ main(int argc, char **argv) {
             }
 
 #ifdef STAGE_TF
+#ifdef INSITU_DSUB_ASM
+            {
+                uint64_t ra_pre = rb_step * 2;
+                dsub_loop(ra_pre, rb_step, 0);
+            }
+#elif defined(INSITU_SUB_ASM)
+            {
+                uint64_t ra_pre = rb_step;
+                sub_loop(ra_pre, rb_step, 0);
+            }
+#endif
 #ifdef TIMING
 
 // Timing.
@@ -602,8 +605,11 @@ main(int argc, char **argv) {
             //     [lower] "r"(lower)
             //     : "cc"
             // );
-            ra = nsamp * rb * 2;
-            dsub_loop(ra, rb, lower);
+            ra = nsamp * rb;
+            if (ra > lower) {
+                ra = nsamp * rb * 2;
+                dsub_loop(ra, rb, lower);
+            }
 #endif
 
 #endif
