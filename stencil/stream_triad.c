@@ -54,7 +54,7 @@
 #define _read_ns(_ns) \
     do {                                                \
         register uint64_t ns;                           \
-        asm volatile(                                   \
+        __asm__ volatile(                                   \
             "\n\tRDTSCP"                                \
             "\n\tshl $32, %%rdx"                        \
             "\n\tor  %%rax, %%rdx"                      \
@@ -69,7 +69,7 @@
 #define _read_cy(_cy) \
     do {                                                \
         register uint64_t cy;                           \
-        asm volatile(                                   \
+        __asm__ volatile(                                   \
             _pfc_read(0x40000001)                       \
             : "=r"(cy)                                  \
             :                                           \
@@ -78,7 +78,7 @@
         _cy = cy;                                       \
     } while(0)
 
-#define _mfence asm volatile("lfence"   "\n\t":::);
+#define _mfence __asm__ volatile("lfence"   "\n\t":::);
 
 
 #define NS_PER_TICK  1
@@ -88,7 +88,7 @@ static inline void tsc_start(uint64_t *cycle){
 #if defined(USE_TSC)
     unsigned ch, cl;
 
-    asm volatile (  "CPUID" "\n\t"
+    __asm__ volatile (  "CPUID" "\n\t"
                     "RDTSC" "\n\t"
                     "mov %%edx, %0" "\n\t"
                     "mov %%eax, %1" "\n\t"
@@ -109,7 +109,7 @@ static inline void tsc_stop(uint64_t *cycle){
 #if defined(USE_TSC)
     unsigned ch, cl;
 
-    asm volatile (  "RDTSCP" "\n\t"
+    __asm__ volatile (  "RDTSCP" "\n\t"
                     "mov %%edx, %0" "\n\t"
                     "mov %%eax, %1" "\n\t"
                     "CPUID" "\n\t"
@@ -167,7 +167,7 @@ static inline uint64_t
 read_cntvct(void)
 {
     uint64_t ticks;
-    asm volatile("isb; mrs %0, cntvct_el0" : "=r"(ticks) :: "memory");
+    __asm__ volatile("isb; mrs %0, cntvct_el0" : "=r"(ticks) :: "memory");
     return ticks;
 }
 
@@ -175,7 +175,7 @@ static inline uint64_t
 read_cntvcto_start(void)
 {
     uint64_t ticks;
-    asm volatile("dsb sy; isb; mrs %0, cntvct_el0" : "=r"(ticks) :: "memory");
+    __asm__ volatile("dsb sy; isb; mrs %0, cntvct_el0" : "=r"(ticks) :: "memory");
     return ticks;
 }
 
@@ -183,7 +183,7 @@ static inline uint64_t
 read_cntvcto_stop(void)
 {
     uint64_t ticks;
-    asm volatile("isb; mrs %0, cntvct_el0; dsb sy; isb" : "=r"(ticks) :: "memory");
+    __asm__ volatile("isb; mrs %0, cntvct_el0; dsb sy; isb" : "=r"(ticks) :: "memory");
     return ticks;
 }
 
