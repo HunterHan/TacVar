@@ -198,6 +198,10 @@ init_cntvct_freq(void)
 }
 #endif
 
+static inline uint64_t timespec_to_ns_u64(const struct timespec *ts) {
+    return (uint64_t)ts->tv_sec * 1000000000ULL + (uint64_t)ts->tv_nsec;
+}
+
 /**
  * @brief Fill arr[size] with random number.
  */
@@ -208,7 +212,7 @@ fill_random(double *arr, size_t size) {
     clock_gettime(CLOCK_MONOTONIC, &tv);
     sec = tv.tv_sec;
     nsec = tv.tv_nsec;
-    nsec = sec * 1e9 + nsec + NWARM * 1e6;
+    nsec = (uint64_t)sec * 1000000000ULL + nsec + (uint64_t)NWARM * 1000000ULL;
     srand(nsec);
     for (size_t i = 0; i < size; i ++){
         arr[i] = (float)rand() / (float)RAND_MAX;
@@ -292,6 +296,17 @@ static __attribute__((noinline)) uint64_t dsub_loop(uint64_t ra, uint64_t rb, ui
     } while (ra > lower);
     return ra;
 #endif
+}
+
+static __attribute__((noinline)) void
+gemm_row_kernel(double **C, double **A, double **B, uint64_t i, uint64_t narr,
+                const double alpha, const double beta) {
+    for (uint64_t j = 0; j < narr; j ++)
+        C[i][j] *= beta;
+    for (uint64_t k = 0; k < narr; k ++) {
+        for (uint64_t j = 0; j < narr; j ++)
+            C[i][j] += alpha * A[i][k] * B[k][j];
+    }
 }
 
 int
@@ -390,17 +405,12 @@ main(int argc, char **argv) {
         clock_gettime(CLOCK_MONOTONIC, &tv);
         sec = tv.tv_sec;
         nsec = tv.tv_nsec;
-        nsec = sec * 1e9 + nsec + NWARM * 1e6;
+        nsec = (uint64_t)sec * 1000000000ULL + nsec + (uint64_t)NWARM * 1000000ULL;
 
-        while (tv.tv_sec * 1e9 + tv.tv_nsec < nsec) {
+        while (timespec_to_ns_u64(&tv) < nsec) {
             clock_gettime(CLOCK_MONOTONIC, &tv);
             for (uint64_t i = 0; i < narr; i ++) {
-                for (uint64_t j = 0; j < narr; j ++)
-                    C[i][j] *= beta;
-                for (uint64_t k = 0; k < narr; k ++) {
-                    for (uint64_t j = 0; j < narr; j ++)
-                        C[i][j] += alpha * A[i][k] * B[k][j];
-                }
+                gemm_row_kernel(C, A, B, i, narr, alpha, beta);
             }
         }
     } while (0);
@@ -409,6 +419,9 @@ main(int argc, char **argv) {
 
 #ifdef TIMING
     uint64_t *p_ns, ns0 = 0, ns1 = 0;
+#if defined(USE_WTIME)
+    double wtime0 = 0.0, wtime1 = 0.0;
+#endif
 // #if defined(USE_PAPI) || defined(USE_TSC)
 //     uint64_t *p_cycles, cycle0 = 0, cycle1 = 0;
 // #endif
@@ -485,19 +498,14 @@ main(int argc, char **argv) {
 
     MPI_Barrier(MPI_COMM_WORLD);
     clock_gettime(CLOCK_MONOTONIC, &tv);
-    nsec_st = tv.tv_sec * 1e9 + tv.tv_nsec;
+    nsec_st = timespec_to_ns_u64(&tv);
 
     uint64_t ra_res = 0;
     for (int it = 0; it < ntest; it ++) {
         for (uint64_t i = 0; i < narr; i ++) {
 
 #if defined(USE_PREWARM) && !defined(STAGE_TF)
-            for (uint64_t j = 0; j < narr; j ++)
-                C[i][j] *= beta;
-            for (uint64_t k = 0; k < narr; k ++) {
-                for (uint64_t j = 0; j < narr; j ++)
-                    C[i][j] += alpha * A[i][k] * B[k][j];
-            }
+            /* Per-sample GEMM prewarm is intentionally disabled: warmup runs once before all tests. */
 #endif
 
 #ifndef STAGE_TF
@@ -514,10 +522,10 @@ main(int argc, char **argv) {
 
 #elif USE_CGT
             clock_gettime(CLOCK_MONOTONIC, &tv);
-            ns0 = tv.tv_sec * 1e9 + tv.tv_nsec;
+            ns0 = timespec_to_ns_u64(&tv);
 
 #elif USE_WTIME
-            ns0 = (uint64_t)(MPI_Wtime() * 1e9);
+            wtime0 = MPI_Wtime();
 
 #elif USE_CNTVCT
             ns0 = cntvct_to_ns(read_cntvct());
@@ -543,12 +551,7 @@ main(int argc, char **argv) {
 
 #endif
 
-            for (uint64_t j = 0; j < narr; j ++)
-                C[i][j] *= beta;
-            for (uint64_t k = 0; k < narr; k ++) {
-                for (uint64_t j = 0; j < narr; j ++)
-                    C[i][j] += alpha * A[i][k] * B[k][j];
-            }
+            gemm_row_kernel(C, A, B, i, narr, alpha, beta);
 
 #ifdef STAGE_TF
 #ifdef INSITU_DSUB_ASM
@@ -575,10 +578,10 @@ main(int argc, char **argv) {
 
 #elif USE_CGT
             clock_gettime(CLOCK_MONOTONIC, &tv);
-            ns0 = tv.tv_sec * 1e9 + tv.tv_nsec;
+            ns0 = timespec_to_ns_u64(&tv);
 
 #elif USE_WTIME
-            ns0 = (uint64_t)(MPI_Wtime() * 1e9);
+            wtime0 = MPI_Wtime();
 
 #elif USE_CNTVCT
             ns0 = cntvct_to_ns(read_cntvct());
@@ -660,12 +663,12 @@ main(int argc, char **argv) {
 
 #elif USE_CGT
             clock_gettime(CLOCK_MONOTONIC, &tv);
-            ns1 = tv.tv_sec * 1e9 + tv.tv_nsec;
+            ns1 = timespec_to_ns_u64(&tv);
             p_ns[it*narr+i] = ns1 - ns0;
 
 #elif USE_WTIME
-            ns1 = (uint64_t)(MPI_Wtime() * 1e9);
-            p_ns[it*narr+i] = ns1 - ns0;
+            wtime1 = MPI_Wtime();
+            p_ns[it*narr+i] = (uint64_t)((wtime1 - wtime0) * 1e9);
 
 #elif USE_CNTVCT
             ns1 = cntvct_to_ns(read_cntvct());
@@ -709,7 +712,7 @@ main(int argc, char **argv) {
     }
 
     clock_gettime(CLOCK_MONOTONIC, &tv);
-    nsec_en = tv.tv_sec * 1e9 + tv.tv_nsec;
+    nsec_en = timespec_to_ns_u64(&tv);
     printf("Rank %d run time: %lu ns\n", myrank, nsec_en - nsec_st);
 
     MPI_Barrier(MPI_COMM_WORLD);
