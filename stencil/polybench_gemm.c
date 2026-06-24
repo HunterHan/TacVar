@@ -314,6 +314,34 @@ static __attribute__((noinline)) uint64_t dsub_loop(uint64_t ra, uint64_t rb, ui
 #endif
 }
 
+/*
+ * CGT-only layout pad.
+ *
+ * On AMD EPYC 9554, the scalar GEMM inner loop is sensitive to whether the
+ * ~32-byte hot loop crosses a 64-byte instruction fetch/cache-line boundary.
+ * The CGT build can otherwise place gemm_row_kernel at a crossing layout,
+ * producing a real target-kernel IPC drop rather than timer-call overhead.
+ *
+ * Keep the pad CGT-only so the PolyBench GEMM computation and other timer
+ * variants remain unchanged.  The used anchor prevents the linker/compiler
+ * from discarding the padding function.
+ */
+#if defined(USE_CGT)
+static __attribute__((noinline, used, aligned(64))) uint64_t
+cgt_gemm_layout_pad(uint64_t x) {
+    __asm__ __volatile__(
+        ".rept 32\n\t"
+        "nop\n\t"
+        ".endr\n\t"
+        : "+r"(x)
+        :
+        : "memory");
+    return x;
+}
+__attribute__((used)) static void *cgt_gemm_layout_pad_anchor =
+    (void *)&cgt_gemm_layout_pad;
+#endif
+
 static __attribute__((inline)) void
 gemm_row_kernel(double **C, double **A, double **B, uint64_t i, uint64_t narr,
                 const double alpha, const double beta) {
