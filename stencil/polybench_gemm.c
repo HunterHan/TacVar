@@ -37,7 +37,8 @@
 
 // Warmup for 1000ms.
 #ifndef NWARM
-#define NWARM 1000
+// #define NWARM 1000
+#define NWARM 20
 #endif
 
 // Number of tests for each interval
@@ -53,6 +54,21 @@
 #define NPASS 1 
 #endif
 
+#if defined(__x86_64__)
+static inline void cpuid_serialize(void) {
+    unsigned int eax = 0, ebx, ecx = 0, edx;
+    __asm__ __volatile__(
+        "cpuid"
+        : "+a"(eax), "=b"(ebx), "+c"(ecx), "=d"(edx)
+        :
+        : "memory"
+    );
+}
+#else
+static inline void cpuid_serialize(void) {
+    __asm__ __volatile__("" ::: "memory");
+}
+#endif
 
 // Timing macros
 #define _read_ns(_ns) \
@@ -298,7 +314,7 @@ static __attribute__((noinline)) uint64_t dsub_loop(uint64_t ra, uint64_t rb, ui
 #endif
 }
 
-static __attribute__((noinline)) void
+static __attribute__((inline)) void
 gemm_row_kernel(double **C, double **A, double **B, uint64_t i, uint64_t narr,
                 const double alpha, const double beta) {
     for (uint64_t j = 0; j < narr; j ++)
@@ -513,18 +529,23 @@ main(int argc, char **argv) {
 
 // Timing.
 #ifdef USE_PAPI
+            cpuid_serialize();
             ns0 = PAPI_get_real_nsec();
             // cycle0 = (uint64_t)PAPI_get_real_cyc();
 
 #elif USE_PAPIX6
+            cpuid_serialize();
             ns0 = PAPI_get_real_nsec();
             PAPI_read(eventset, ev_vals_0);
 
 #elif USE_CGT
+            cpuid_serialize();
             clock_gettime(CLOCK_MONOTONIC, &tv);
             ns0 = timespec_to_ns_u64(&tv);
+            // ns0 = tv.tv_sec * 1e9 + tv.tv_nsec;
 
 #elif USE_WTIME
+            cpuid_serialize();
             wtime0 = MPI_Wtime();
 
 #elif USE_CNTVCT
@@ -569,18 +590,23 @@ main(int argc, char **argv) {
 
 // Timing.
 #ifdef USE_PAPI
+            cpuid_serialize();
             ns0 = PAPI_get_real_nsec();
             // cycle0 = (uint64_t)PAPI_get_real_cyc();
 
 #elif USE_PAPIX6
+            cpuid_serialize();
             ns0 = PAPI_get_real_nsec();
             PAPI_read(eventset, ev_vals_0);
 
 #elif USE_CGT
+            cpuid_serialize();
             clock_gettime(CLOCK_MONOTONIC, &tv);
             ns0 = timespec_to_ns_u64(&tv);
+            // ns0 = tv.tv_sec * 1e9 + tv.tv_nsec;
 
 #elif USE_WTIME
+            cpuid_serialize();
             wtime0 = MPI_Wtime();
 
 #elif USE_CNTVCT
@@ -648,13 +674,18 @@ main(int argc, char **argv) {
 #ifdef TIMING
 
 #ifdef USE_PAPI
+            
             ns1 = PAPI_get_real_nsec();
+            cpuid_serialize();
             p_ns[it*narr+i] = (uint64_t)(ns1 - ns0);
             // cycle1 = (uint64_t)PAPI_get_real_cyc();
             // p_cycles[it*narr+j] = cycle1 - cycle0;
+            
 
 #elif USE_PAPIX6
+            
             ns1 = PAPI_get_real_nsec();
+            cpuid_serialize();
             PAPI_read(eventset, ev_vals_1);
             for (int iev = 0; iev < nev; iev ++) {
                 p_ev[it * narr * nev + i * nev + iev] = (int64_t)(ev_vals_1[iev] - ev_vals_0[iev]);
@@ -662,12 +693,17 @@ main(int argc, char **argv) {
             p_ns[it*narr+i] = (uint64_t)(ns1 - ns0);
 
 #elif USE_CGT
+            
             clock_gettime(CLOCK_MONOTONIC, &tv);
+            cpuid_serialize();
             ns1 = timespec_to_ns_u64(&tv);
+            // ns1 = tv.tv_sec * 1e9 + tv.tv_nsec;
             p_ns[it*narr+i] = ns1 - ns0;
 
 #elif USE_WTIME
+            
             wtime1 = MPI_Wtime();
+            cpuid_serialize();
             p_ns[it*narr+i] = (uint64_t)((wtime1 - wtime0) * 1e9);
 
 #elif USE_CNTVCT
