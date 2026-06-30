@@ -54,6 +54,19 @@
 #define NPASS 1
 #endif
 
+#if defined(__x86_64__)
+static inline void cpuid_serialize(void) {
+    unsigned int eax = 0, ebx, ecx = 0, edx;
+    __asm__ __volatile__("cpuid" : "+a"(eax), "=b"(ebx), "+c"(ecx), "=d"(edx) :: "memory");
+}
+#else
+static inline void cpuid_serialize(void) { __asm__ __volatile__("" ::: "memory"); }
+#endif
+
+static inline uint64_t timespec_to_ns_u64(const struct timespec *ts) {
+    return (uint64_t)ts->tv_sec * 1000000000ULL + (uint64_t)ts->tv_nsec;
+}
+
 
 // Timing macros
 #define _read_ns(_ns) \
@@ -434,7 +447,7 @@ main(int argc, char **argv) {
         nsec = tv.tv_nsec;
         nsec = sec * 1e9 + nsec + NWARM * 1e6;
 
-        while (tv.tv_sec * 1e9 + tv.tv_nsec < nsec) {
+        while (timespec_to_ns_u64(&tv) < nsec) {
             clock_gettime(CLOCK_MONOTONIC, &tv);
             cfftz(1,m,narr,u,x,y);
         }
@@ -444,6 +457,7 @@ main(int argc, char **argv) {
 
 #ifdef TIMING
     uint64_t *p_ns, ns0 = 0, ns1 = 0;
+    double wtime0 = 0.0, wtime1 = 0.0;
 // #if defined(USE_PAPI) || defined(USE_TSC)
 //     uint64_t *p_cycles, cycle0 = 0, cycle1 = 0;
 // #endif
@@ -513,7 +527,7 @@ main(int argc, char **argv) {
 
     MPI_Barrier(MPI_COMM_WORLD);
     clock_gettime(CLOCK_MONOTONIC, &tv);
-    nsec_st = tv.tv_sec * 1e9 + tv.tv_nsec;
+    nsec_st = timespec_to_ns_u64(&tv);
 
     uint64_t ra_res = 0;
     for (int it = 0; it < ntest; it ++) {
@@ -538,11 +552,13 @@ main(int argc, char **argv) {
             PAPI_read(eventset, ev_vals_0);
 
 #elif USE_CGT
+            cpuid_serialize();
             clock_gettime(CLOCK_MONOTONIC, &tv);
-            ns0 = tv.tv_sec * 1e9 + tv.tv_nsec;
+            ns0 = timespec_to_ns_u64(&tv);
 
 #elif USE_WTIME
-            ns0 = (uint64_t)(MPI_Wtime() * 1e9);
+            cpuid_serialize();
+            wtime0 = MPI_Wtime();
 
 #elif USE_CNTVCT
             ns0 = cntvct_to_ns(read_cntvct());
@@ -595,11 +611,13 @@ main(int argc, char **argv) {
             PAPI_read(eventset, ev_vals_0);
 
 #elif USE_CGT
+            cpuid_serialize();
             clock_gettime(CLOCK_MONOTONIC, &tv);
-            ns0 = tv.tv_sec * 1e9 + tv.tv_nsec;
+            ns0 = timespec_to_ns_u64(&tv);
 
 #elif USE_WTIME
-            ns0 = (uint64_t)(MPI_Wtime() * 1e9);
+            cpuid_serialize();
+            wtime0 = MPI_Wtime();
 
 #elif USE_CNTVCT
             ns0 = cntvct_to_ns(read_cntvct());
@@ -681,12 +699,14 @@ main(int argc, char **argv) {
 
 #elif USE_CGT
             clock_gettime(CLOCK_MONOTONIC, &tv);
-            ns1 = tv.tv_sec * 1e9 + tv.tv_nsec;
+            cpuid_serialize();
+            ns1 = timespec_to_ns_u64(&tv);
             p_ns[it*m+stage] = ns1 - ns0;
 
 #elif USE_WTIME
-            ns1 = (uint64_t)(MPI_Wtime() * 1e9);
-            p_ns[it*m+stage] = ns1 - ns0;
+            wtime1 = MPI_Wtime();
+            cpuid_serialize();
+            p_ns[it*m+stage] = (uint64_t)((wtime1 - wtime0) * 1e9);
 
 #elif USE_CNTVCT
             ns1 = cntvct_to_ns(read_cntvct());
@@ -730,7 +750,7 @@ main(int argc, char **argv) {
     }
 
     clock_gettime(CLOCK_MONOTONIC, &tv);
-    nsec_en = tv.tv_sec * 1e9 + tv.tv_nsec;
+    nsec_en = timespec_to_ns_u64(&tv);
     printf("Rank %d run time: %lu ns\n", myrank, nsec_en - nsec_st);
 
     MPI_Barrier(MPI_COMM_WORLD);
