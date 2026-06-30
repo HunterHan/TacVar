@@ -249,7 +249,7 @@ compile_one(){
     if [ "$KERNEL_EXT" = "cpp" ]; then
         mpicxx -std=c++11 -o "$out" "$src" $timer_cflags -D"$INSITU" $tf_flag -DTIMING "-DUSE_${timer^^}" -I"${OPENBLAS_HOME}/include" -L"${OPENBLAS_HOME}/lib" $EXTRA_LIBS
     else
-        mpicc -std=c11 -o "$out" "$src" $timer_cflags -D"$INSITU" $tf_flag -DTIMING "-DUSE_${timer^^}" -I"${OPENBLAS_HOME}/include" -L"${OPENBLAS_HOME}/lib" $EXTRA_LIBS
+        mpicc -std=gnu11 -o "$out" "$src" $timer_cflags -D"$INSITU" $tf_flag -DTIMING "-DUSE_${timer^^}" -I"${OPENBLAS_HOME}/include" -L"${OPENBLAS_HOME}/lib" $EXTRA_LIBS
     fi
 }
 
