@@ -55,8 +55,63 @@ run_id_for(){
 
 remote_cleanup(){
     local host=$1 kernel=$2
-    local suite_pattern='jacobi2d5p_.*\.x|gs2d5p_.*\.x|tl_f90_cg_calc_w_.*\.x|stream_triad_.*\.x|openblas_gemm_.*\.x|openblas_gemv_.*\.x|openblas_dot_.*\.x|openblas_axpy_.*\.x|hpcg_spmv_.*\.x|npb_ft_fft_.*\.x|npb_ep_.*\.x|filt\.x|mpirun|prterun|orted|prted|run_entry_filt\..*0630'
-    ssh "$host" "set -e; cd '${REMOTE_PROJ}/stencil'; rm -f ${kernel}_*.x filt.x ./*.csv || true; pgrep -u \"\$USER\" -af \"${suite_pattern}\" || true; pkill -9 -u \"\$USER\" -f \"${suite_pattern}\" || true; sleep 1; pgrep -u \"\$USER\" -af \"${suite_pattern}\" || true"
+    ssh "$host" python3 - "${REMOTE_PROJ}" "$kernel" <<'REMOTE_CLEAN_PY'
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+remote_proj, kernel = sys.argv[1:3]
+stencil = Path(remote_proj) / 'stencil'
+stencil.mkdir(parents=True, exist_ok=True)
+os.chdir(stencil)
+for path in stencil.glob(f'{kernel}_*.x'):
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+for name in ('filt.x',):
+    try:
+        (stencil / name).unlink()
+    except FileNotFoundError:
+        pass
+for path in stencil.glob('*.csv'):
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+suite_re = re.compile(r'jacobi2d5p_.*\.x|gs2d5p_.*\.x|tl_f90_cg_calc_w_.*\.x|stream_triad_.*\.x|openblas_gemm_.*\.x|openblas_gemv_.*\.x|openblas_dot_.*\.x|openblas_axpy_.*\.x|hpcg_spmv_.*\.x|npb_ft_fft_.*\.x|npb_ep_.*\.x|filt\.x|mpirun|prterun|orted|prted|run_entry_filt\..*0630')
+user = os.environ.get('USER') or os.environ.get('LOGNAME')
+cmd = ['ps', '-u', user, '-o', 'pid=,ppid=,args='] if user else ['ps', '-axo', 'pid=,ppid=,args=']
+proc = subprocess.run(cmd, text=True, capture_output=True, check=False)
+skip = {os.getpid(), os.getppid()}
+killed = []
+for line in proc.stdout.splitlines():
+    parts = line.strip().split(None, 2)
+    if len(parts) < 3:
+        continue
+    try:
+        pid = int(parts[0]); ppid = int(parts[1])
+    except ValueError:
+        continue
+    args = parts[2]
+    if pid in skip or ppid in skip:
+        continue
+    if suite_re.search(args):
+        try:
+            os.kill(pid, signal.SIGKILL)
+            killed.append((pid, args[:160]))
+        except ProcessLookupError:
+            pass
+print('[midgrain-cleanup] killed=%d' % len(killed))
+for pid, args in killed:
+    print('[midgrain-cleanup] killed pid=%s args=%s' % (pid, args))
+time.sleep(1)
+REMOTE_CLEAN_PY
 }
 
 upload_kernel_files(){
