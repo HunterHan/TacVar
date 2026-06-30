@@ -55,7 +55,8 @@ run_id_for(){
 
 remote_cleanup(){
     local host=$1 kernel=$2
-    ssh "$host" "set -e; cd '${REMOTE_PROJ}/stencil'; rm -f ${kernel}_*.x filt.x ./*.csv || true; pgrep -af '${kernel}_.*\\.x|filt\\.x|mpirun|prterun|orted|prted|run_entry_filt\\.${kernel}\\.0630|run_entry_filt\\.kernel_common\\.0630' || true; pgrep -af '${kernel}_.*\\.x|filt\\.x|mpirun|prterun|orted|prted|run_entry_filt\\.${kernel}\\.0630|run_entry_filt\\.kernel_common\\.0630' | awk '\''{print \$1}'\'' | xargs -r kill -9 || true"
+    local suite_pattern='jacobi2d5p_.*\.x|gs2d5p_.*\.x|tl_f90_cg_calc_w_.*\.x|stream_triad_.*\.x|openblas_gemm_.*\.x|openblas_gemv_.*\.x|openblas_dot_.*\.x|openblas_axpy_.*\.x|hpcg_spmv_.*\.x|npb_ft_fft_.*\.x|npb_ep_.*\.x|filt\.x|mpirun|prterun|orted|prted|run_entry_filt\..*0630'
+    ssh "$host" "set -e; cd '${REMOTE_PROJ}/stencil'; rm -f ${kernel}_*.x filt.x ./*.csv || true; pgrep -u \"\$USER\" -af \"${suite_pattern}\" || true; pkill -9 -u \"\$USER\" -f \"${suite_pattern}\" || true; sleep 1; pgrep -u \"\$USER\" -af \"${suite_pattern}\" || true"
 }
 
 upload_kernel_files(){
