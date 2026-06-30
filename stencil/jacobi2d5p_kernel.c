@@ -1,3 +1,6 @@
+/* Jacobi 2D 5-point target kernel with kernel-level timing.
+ * Derived from jacobi2d5p.c; each timing sample is one complete Jacobi sweep.
+ */
 #define _GNU_SOURCE
 #define _ISOC11_SOURCE
 #include <stdio.h>
@@ -28,9 +31,9 @@
 #define NWARM 1000
 #endif
 
-// Number of tests for each interval
+// Number of kernel-level tests. Each sample is one full Jacobi sweep.
 #ifndef NTEST
-#define NTEST 10
+#define NTEST 1000
 #endif
 
 #ifndef NARR
@@ -370,7 +373,7 @@ main(int argc, char **argv) {
 
     
     if (myrank == 0) {
-        printf("A 2D 5-point Jacobi stencil scheme.\nNTEST=%lu, NPASS=%u, NARR=%lu \n", 
+        printf("A 2D 5-point Jacobi stencil scheme (kernel-level timing).\nNTEST=%lu, NPASS=%u, NARR=%lu \n", 
                 ntest, NPASS, narr);
     }
 
@@ -424,7 +427,7 @@ main(int argc, char **argv) {
     int nev = 6;
     long long int ev_vals_0[6]={0}, ev_vals_1[6]={0};
     int64_t *p_ev;
-    p_ev = (int64_t *)malloc(ntest * narr * nev * sizeof(int64_t));
+    p_ev = (int64_t *)malloc(ntest * nev * sizeof(int64_t));
     for (int iev = 0; iev < nev; iev ++) {
         ev_vals_0[iev] = 0;
         ev_vals_1[iev] = 0;
@@ -454,7 +457,7 @@ main(int argc, char **argv) {
     if (myrank == 0) {
         printf("LIKWID event count = %d\n", nev);
     }
-    p_ev = (int64_t *)malloc(ntest * narr * nev * sizeof(int64_t));
+    p_ev = (int64_t *)malloc(ntest * nev * sizeof(int64_t));
     for (int iev = 0; iev < nev; iev ++) {
         ev_vals_0[iev] = 0;
         ev_vals_1[iev] = 0;
@@ -462,7 +465,7 @@ main(int argc, char **argv) {
 
 #endif
 
-    p_ns = (uint64_t *)malloc(ntest * narr * sizeof(uint64_t));
+    p_ns = (uint64_t *)malloc(ntest * sizeof(uint64_t));
 // #if defined(USE_PAPI) || defined(USE_TSC)
 //     p_cycles = (uint64_t *)malloc(ntest * narr * sizeof(uint64_t));
 // #endif
@@ -490,227 +493,158 @@ main(int argc, char **argv) {
             }
         }
 
-        for (uint64_t j = 1; j < narr-1; j ++) {
-
-#if defined(USE_PREWARM) && !defined(STAGE_TF)
-            /* Per-sample Jacobi prewarm is intentionally disabled: warmup runs once before all tests. */
-#endif
-
 #ifndef STAGE_TF
 #ifdef TIMING
-
-// Timing.
 #ifdef USE_PAPI
-            cpuid_serialize();
-            ns0 = PAPI_get_real_nsec();
-            // cycle0 = (uint64_t)PAPI_get_real_cyc();
-
+        cpuid_serialize();
+        ns0 = PAPI_get_real_nsec();
 #elif USE_PAPIX6
-            cpuid_serialize();
-            ns0 = PAPI_get_real_nsec();
-            PAPI_read(eventset, ev_vals_0);
-
+        cpuid_serialize();
+        ns0 = PAPI_get_real_nsec();
+        PAPI_read(eventset, ev_vals_0);
 #elif USE_CGT
-            cpuid_serialize();
-            clock_gettime(CLOCK_MONOTONIC, &tv);
-            ns0 = timespec_to_ns_u64(&tv);
-
+        cpuid_serialize();
+        clock_gettime(CLOCK_MONOTONIC, &tv);
+        ns0 = timespec_to_ns_u64(&tv);
 #elif USE_WTIME
-            cpuid_serialize();
-            wtime0 = MPI_Wtime();
-
+        cpuid_serialize();
+        wtime0 = MPI_Wtime();
+        wtime0 = MPI_Wtime();
 #elif USE_CNTVCT
-            ns0 = cntvct_to_ns(read_cntvct());
-
+        ns0 = cntvct_to_ns(read_cntvct());
 #elif USE_CNTVCTO
-            ns0 = cntvct_to_ns(read_cntvcto_start());
-
+        ns0 = cntvct_to_ns(read_cntvcto_start());
 #elif USE_LIKWID
-            //ns0 = 0;
-            LIKWID_MARKER_START("vkern"); 
-
+        LIKWID_MARKER_START("vkern");
 #elif defined(USE_TSC) || defined(USE_TSC_FENCE) || defined(USE_TSC_NATIVE)
-            tsc_start(&ns0);
-            // cycle0 = ns0;
-
+        tsc_start(&ns0);
 #else
-            _read_ns (ns0);
-            _mfence;
-
+        _read_ns(ns0);
+        _mfence;
+#endif
+#endif
 #endif
 
-#endif
-
-#endif
-
+        for (uint64_t j = 1; j < narr-1; j ++) {
             for (uint64_t k = 1; k < narr-1; k ++) {
                 y[j][k] = a * x[j][k] + b * (x[j-1][k] + x[j+1][k] + x[j][k-1] + x[j][k+1]);
             }
+        }
 
 #ifdef STAGE_TF
 #ifdef INSITU_DSUB_ASM
-            {
-                uint64_t ra_pre = rb_step * 2;
-                dsub_loop(ra_pre, rb_step, 0);
-            }
+        {
+            uint64_t ra_pre = rb_step * 2;
+            dsub_loop(ra_pre, rb_step, 0);
+        }
 #elif defined(INSITU_SUB_ASM)
-            {
-                uint64_t ra_pre = rb_step;
-                sub_loop(ra_pre, rb_step, 0);
-            }
+        {
+            uint64_t ra_pre = rb_step;
+            sub_loop(ra_pre, rb_step, 0);
+        }
 #endif
 #ifdef TIMING
-
-// Timing.
 #ifdef USE_PAPI
-            cpuid_serialize();
-            ns0 = PAPI_get_real_nsec();
-            // cycle0 = (uint64_t)PAPI_get_real_cyc();
-
+        cpuid_serialize();
+        ns0 = PAPI_get_real_nsec();
 #elif USE_PAPIX6
-            cpuid_serialize();
-            ns0 = PAPI_get_real_nsec();
-            PAPI_read(eventset, ev_vals_0);
-
+        cpuid_serialize();
+        ns0 = PAPI_get_real_nsec();
+        PAPI_read(eventset, ev_vals_0);
 #elif USE_CGT
-            cpuid_serialize();
-            clock_gettime(CLOCK_MONOTONIC, &tv);
-            ns0 = timespec_to_ns_u64(&tv);
-
+        cpuid_serialize();
+        clock_gettime(CLOCK_MONOTONIC, &tv);
+        ns0 = timespec_to_ns_u64(&tv);
 #elif USE_WTIME
-            cpuid_serialize();
-            wtime0 = MPI_Wtime();
-
+        cpuid_serialize();
+        wtime0 = MPI_Wtime();
 #elif USE_CNTVCT
-            ns0 = cntvct_to_ns(read_cntvct());
-
+        ns0 = cntvct_to_ns(read_cntvct());
 #elif USE_CNTVCTO
-            ns0 = cntvct_to_ns(read_cntvcto_start());
-
+        ns0 = cntvct_to_ns(read_cntvcto_start());
 #elif USE_LIKWID
-            //ns0 = 0;
-            LIKWID_MARKER_START("vkern"); 
-
+        LIKWID_MARKER_START("vkern");
 #elif defined(USE_TSC) || defined(USE_TSC_FENCE) || defined(USE_TSC_NATIVE)
-            tsc_start(&ns0);
-            // cycle0 = ns0;
-
+        tsc_start(&ns0);
 #else
-            _read_ns (ns0);
-            _mfence;
-
+        _read_ns(ns0);
+        _mfence;
+#endif
 #endif
 
-#endif
-
-
-            register uint64_t ra;
-            register uint64_t rb = rb_step;            
-            register uint64_t lower = ra_lower_boundary;
-            
+        register uint64_t ra = 0;
+        register uint64_t rb = rb_step;
+        register uint64_t lower = ra_lower_boundary;
 #ifdef INSITU_SUB_C
-            ra = nsamp * rb;
-            while (ra > lower) {
-                ra -= rb;
-            }
+        ra = nsamp * rb;
+        while (ra > lower) {
+            ra -= rb;
+        }
 #endif
 #ifdef INSITU_SUB_ASM
-            ra = nsamp * rb;
-            sub_loop(ra, rb, lower);
+        ra = nsamp * rb;
+        sub_loop(ra, rb, lower);
 #endif
 #ifdef INSITU_DSUB_ASM
-            
-            // __asm__ __volatile__(
-            //     "1:\n\t"
-            //     "subq %[rb], %[ra]\n\t"
-            //     "subq %[rb], %[ra]\n\t"
-            //     "cmpq %[lower], %[ra]\n\t"
-            //     "ja 1b\n\t"
-            //     : [ra] "+&r"(ra)
-            //     : [rb] "r"(rb),
-            //     [lower] "r"(lower)
-            //     : "cc"
-            // );
-            ra = nsamp * rb;
-            if (ra > lower) {
-                ra = nsamp * rb * 2;
-                dsub_loop(ra, rb, lower);
-            }
+        ra = nsamp * rb;
+        if (ra > lower) {
+            ra = nsamp * rb * 2;
+            dsub_loop(ra, rb, lower);
+        }
 #endif
-
 #endif
-
-
-
 
 #ifdef TIMING
-
 #ifdef USE_PAPI
-            ns1 = PAPI_get_real_nsec();
-            cpuid_serialize();
-            p_ns[it*narr+j] = (uint64_t)(ns1 - ns0);
-            // cycle1 = (uint64_t)PAPI_get_real_cyc();
-            // p_cycles[it*narr+j] = cycle1 - cycle0;
-
+        ns1 = PAPI_get_real_nsec();
+        cpuid_serialize();
+        p_ns[it] = (uint64_t)(ns1 - ns0);
 #elif USE_PAPIX6
-            ns1 = PAPI_get_real_nsec();
-            cpuid_serialize();
-            PAPI_read(eventset, ev_vals_1);
-            for (int iev = 0; iev < nev; iev ++) {
-                p_ev[it * narr * nev + j * nev + iev] = (int64_t)(ev_vals_1[iev] - ev_vals_0[iev]);
-            }
-            p_ns[it*narr+j] = (uint64_t)(ns1 - ns0);
-
+        ns1 = PAPI_get_real_nsec();
+        cpuid_serialize();
+        PAPI_read(eventset, ev_vals_1);
+        for (int iev = 0; iev < nev; iev ++) {
+            p_ev[it * nev + iev] = (int64_t)(ev_vals_1[iev] - ev_vals_0[iev]);
+        }
+        p_ns[it] = (uint64_t)(ns1 - ns0);
 #elif USE_CGT
-            clock_gettime(CLOCK_MONOTONIC, &tv);
-            cpuid_serialize();
-            ns1 = timespec_to_ns_u64(&tv);
-            p_ns[it*narr+j] = ns1 - ns0;
-
+        clock_gettime(CLOCK_MONOTONIC, &tv);
+        cpuid_serialize();
+        ns1 = timespec_to_ns_u64(&tv);
+        p_ns[it] = ns1 - ns0;
 #elif USE_WTIME
-            wtime1 = MPI_Wtime();
-            cpuid_serialize();
-            p_ns[it*narr+j] = (uint64_t)((wtime1 - wtime0) * 1e9);
-
+        wtime1 = MPI_Wtime();
+        cpuid_serialize();
+        p_ns[it] = (uint64_t)((wtime1 - wtime0) * 1e9);
 #elif USE_CNTVCT
-            ns1 = cntvct_to_ns(read_cntvct());
-            p_ns[it*narr+j] = ns1 - ns0;
-
+        ns1 = cntvct_to_ns(read_cntvct());
+        p_ns[it] = ns1 - ns0;
 #elif USE_CNTVCTO
-            ns1 = cntvct_to_ns(read_cntvcto_stop());
-            p_ns[it*narr+j] = ns1 - ns0;
-
+        ns1 = cntvct_to_ns(read_cntvcto_stop());
+        p_ns[it] = ns1 - ns0;
 #elif USE_LIKWID
-            LIKWID_MARKER_STOP("vkern"); 
-            LIKWID_MARKER_GET("vkern", &nev, (double*)ev_vals_1, &time, &count);
-            for (int iev = 0; iev < nev; iev ++) {
-                p_ev[it * narr * nev + j * nev + iev] = (int64_t)ev_vals_1[iev] - (int64_t)ev_vals_0[iev];
-                ev_vals_0[iev] = ev_vals_1[iev];
-            }
-            // We do not use "time" argument as the timestamp because the perfmon swith the timer
-            // unexpectedly. It is good to use FIXC2: CPU_CLK_UNHALTED_REF and convert with tsc_ns
-            // ns1 = (uint64_t)((double)p_ev[it * narr * nev + j * nev + 2] / tsc_ns);
-            ns1 = (uint64_t) (time * 1e9);
-            p_ns[it*narr+j] = ns1 - ns0;
-            ns0 = ns1;
-
+        LIKWID_MARKER_STOP("vkern");
+        LIKWID_MARKER_GET("vkern", &nev, (double*)ev_vals_1, &time, &count);
+        for (int iev = 0; iev < nev; iev ++) {
+            p_ev[it * nev + iev] = (int64_t)ev_vals_1[iev] - (int64_t)ev_vals_0[iev];
+            ev_vals_0[iev] = ev_vals_1[iev];
+        }
+        ns1 = (uint64_t) (time * 1e9);
+        p_ns[it] = ns1 - ns0;
+        ns0 = ns1;
 #elif defined(USE_TSC) || defined(USE_TSC_FENCE) || defined(USE_TSC_NATIVE)
-            tsc_stop(&ns1);
-            // p_cycles[it*narr+j] = ns1 - cycle0;
-            p_ns[it*narr+j] = (uint64_t)((double)(ns1 - ns0) * tsc_ns);
-
+        tsc_stop(&ns1);
+        p_ns[it] = (uint64_t)((double)(ns1 - ns0) * tsc_ns);
 #else
-            _read_ns (ns1);
-            _mfence;
-            p_ns[it*narr+j] = (uint64_t)((double)(ns1 - ns0) * tsc_ns);
+        _read_ns(ns1);
+        _mfence;
+        p_ns[it] = (uint64_t)((double)(ns1 - ns0) * tsc_ns);
 #endif
-
 #endif
 
 #ifdef STAGE_TF
-            ra_res += ra;
+        ra_res += ra;
 #endif
-        }
     }
 
     clock_gettime(CLOCK_MONOTONIC, &tv);
@@ -732,58 +666,53 @@ main(int argc, char **argv) {
     char fname[4096], myhost[1024];
     gethostname(myhost, 1024);
 #ifdef USE_PAPI
-    sprintf(fname, "jacobi2d5p_papi_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "jacobi2d5p_kernel_papi_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif USE_CGT
-    sprintf(fname, "jacobi2d5p_cgt_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "jacobi2d5p_kernel_cgt_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif USE_WTIME
-    sprintf(fname, "jacobi2d5p_wtime_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "jacobi2d5p_kernel_wtime_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif USE_CNTVCT
-    sprintf(fname, "jacobi2d5p_cntvct_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "jacobi2d5p_kernel_cntvct_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif USE_CNTVCTO
-    sprintf(fname, "jacobi2d5p_cntvcto_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "jacobi2d5p_kernel_cntvcto_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif USE_PAPIX6
-    sprintf(fname, "jacobi2d5p_papix6_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "jacobi2d5p_kernel_papix6_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif USE_LIKWID
-    sprintf(fname, "jacobi2d5p_likwid_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "jacobi2d5p_kernel_likwid_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif defined(USE_TSC_FENCE)
-    sprintf(fname, "jacobi2d5p_tsc_fence_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "jacobi2d5p_kernel_tsc_fence_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif defined(USE_TSC_NATIVE)
-    sprintf(fname, "jacobi2d5p_tsc_native_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "jacobi2d5p_kernel_tsc_native_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #elif defined(USE_TSC)
-    sprintf(fname, "jacobi2d5p_tsc_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "jacobi2d5p_kernel_tsc_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #else
-    sprintf(fname, "jacobi2d5p_stiming_time_%d_%s.csv", myrank, myhost);
+    sprintf(fname, "jacobi2d5p_kernel_stiming_time_%d_%s.csv", myrank, myhost);
     FILE *fp = fopen(fname, "w");
 #endif
 
     for (int it = NPASS; it < ntest; it ++) {
-        for (size_t j = 1; j < narr-1; j ++) {
 #ifndef STAGE_TF
-            fprintf(fp, "%d,%lu", myrank, p_ns[it*narr+j]);
+        fprintf(fp, "%d,%lu", myrank, p_ns[it]);
 #else
-            fprintf(fp, "%d,%lu,%lu", myrank, nsamp, p_ns[it*narr+j]);
+        fprintf(fp, "%d,%lu,%lu", myrank, nsamp, p_ns[it]);
 #endif
 
 #if defined(USE_LIKWID) || defined(USE_PAPIX6)
-            for (int iev = 0; iev < nev; iev ++) {
-                fprintf(fp, ",%ld", p_ev[it*narr*nev+j*nev+iev]);
-            }
-#endif
-// #if defined(STAGE_TF) && (defined(USE_PAPI) || defined(USE_TSC))
-//             fprintf(fp, ",%lu", p_cycles[it*narr+j]);
-// #endif
-            fprintf(fp, "\n");
+        for (int iev = 0; iev < nev; iev ++) {
+            fprintf(fp, ",%ld", p_ev[it*nev+iev]);
         }
+#endif
+        fprintf(fp, "\n");
     }
 
     fclose(fp);
