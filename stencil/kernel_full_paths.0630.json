@@ -1,0 +1,13 @@
+{
+  "jacobi2d5p": {},
+  "gs2d5p": {},
+  "tl_f90_cg_calc_w": {},
+  "stream_triad": {},
+  "openblas_gemm": {},
+  "openblas_gemv": {},
+  "openblas_dot": {},
+  "openblas_axpy": {},
+  "hpcg_spmv": {},
+  "npb_ft_fft": {},
+  "npb_ep": {}
+}
