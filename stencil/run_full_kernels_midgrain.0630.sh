@@ -176,6 +176,7 @@ run_one(){
         echo "[midgrain] host=${host} kernel=${kernel} run_id=${run_id} start=$(date -Is)"
         upload_kernel_files "$host" "$kernel"
         remote_cleanup "$host" "$kernel"
+        ssh "$host" "rm -rf '${remote_run}'"
         ssh "$host" "cd '${REMOTE_PROJ}' && DATE_BASE='${DATE_BASE}' DATE_STAMP='${run_id}' COMMIT_HASH='${COMMIT_HASH}' INSITU='${INSITU}' SHUFFLE_COUNT='${SHUFFLE_COUNT}' NP_LIST='${NP_LIST}' NSAMP='${NSAMP}' NSAMP_RATIO_LIST='${NSAMP_RATIO_LIST}' SMOKE='${SMOKE:-0}' bash 'stencil/run_entry_filt.${kernel}.0630.sh'"
         ssh "$host" "grep -q '\[harness\] exit_status=0' '${remote_run}/run.log'"
         make_manifest_remote "$host" "$remote_run"
