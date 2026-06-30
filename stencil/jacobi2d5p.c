@@ -51,6 +51,10 @@ static inline void cpuid_serialize(void) {
         : "memory"
     );
 }
+#elif defined(__aarch64__)
+static inline void cpuid_serialize(void) {
+    __asm__ __volatile__("dsb sy\n\tisb" ::: "memory");
+}
 #else
 static inline void cpuid_serialize(void) {
     __asm__ __volatile__("" ::: "memory");
