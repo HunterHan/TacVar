@@ -124,14 +124,14 @@ upload_kernel_files(){
 
 make_manifest_remote(){
     local host=$1 run_dir=$2
-    ssh "$host" "set -e; cd '${run_dir}'; find . -type f ! -name 'MANIFEST*.sha256' -print0 | sort -z | xargs -0 sha256sum > MANIFEST.sha256"
+    ssh "$host" "set -e; cd '${run_dir}'; find . -type f ! -name 'MANIFEST*.sha256' -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | LC_ALL=C sort > MANIFEST.sha256"
 }
 
 pull_and_verify(){
     local host=$1 remote_run=$2 local_run=$3
     mkdir -p "$local_run"
     rsync -a --delete "${host}:${remote_run}/" "${local_run}/"
-    (cd "$local_run" && find . -type f ! -name 'MANIFEST*.sha256' -print0 | sort -z | xargs -0 sha256sum > MANIFEST.af309.sha256)
+    (cd "$local_run" && find . -type f ! -name 'MANIFEST*.sha256' -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | LC_ALL=C sort > MANIFEST.af309.sha256)
     diff -u "${local_run}/MANIFEST.sha256" "${local_run}/MANIFEST.af309.sha256"
 }
 
