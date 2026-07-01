@@ -179,6 +179,26 @@
       "shuffle": "shuffle2"
     }
   },
+  "polybench_gemm": {
+    "c920bn3": {
+      "date_base": "20260630",
+      "output_root": "output_polybench_gemm_full_0630_dsub",
+      "run_id": "20260630-full-polybench-gemm-dsub",
+      "shuffle": "shuffle2"
+    },
+    "camd9554n1": {
+      "date_base": "20260630",
+      "output_root": "output_polybench_gemm_full_0630_dsub",
+      "run_id": "20260630-full-polybench-gemm-dsub",
+      "shuffle": "shuffle2"
+    },
+    "cgnr6760pn2": {
+      "date_base": "20260630",
+      "output_root": "output_polybench_gemm_full_0630_dsub",
+      "run_id": "20260630-full-polybench-gemm-dsub",
+      "shuffle": "shuffle2"
+    }
+  },
   "stream_triad": {
     "c920bn3": {
       "date_base": "20260630",
