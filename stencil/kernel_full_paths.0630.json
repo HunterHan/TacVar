@@ -1,13 +1,222 @@
 {
-  "jacobi2d5p": {},
-  "gs2d5p": {},
-  "tl_f90_cg_calc_w": {},
-  "stream_triad": {},
-  "openblas_gemm": {},
-  "openblas_gemv": {},
-  "openblas_dot": {},
-  "openblas_axpy": {},
-  "hpcg_spmv": {},
-  "npb_ft_fft": {},
-  "npb_ep": {}
+  "gs2d5p": {
+    "c920bn3": {
+      "date_base": "20260630",
+      "output_root": "output_gs2d5p_filt_dsub",
+      "run_id": "20260630-full-gs2d5p-dsub",
+      "shuffle": "shuffle2"
+    },
+    "camd9554n1": {
+      "date_base": "20260630",
+      "output_root": "output_gs2d5p_filt_dsub",
+      "run_id": "20260630-full-gs2d5p-dsub",
+      "shuffle": "shuffle2"
+    },
+    "cgnr6760pn2": {
+      "date_base": "20260630",
+      "output_root": "output_gs2d5p_filt_dsub",
+      "run_id": "20260630-full-gs2d5p-dsub",
+      "shuffle": "shuffle2"
+    }
+  },
+  "hpcg_spmv": {
+    "c920bn3": {
+      "date_base": "20260630",
+      "output_root": "output_hpcg_spmv_filt_dsub",
+      "run_id": "20260630-full-hpcg-spmv-dsub",
+      "shuffle": "shuffle2"
+    },
+    "camd9554n1": {
+      "date_base": "20260630",
+      "output_root": "output_hpcg_spmv_filt_dsub",
+      "run_id": "20260630-full-hpcg-spmv-dsub",
+      "shuffle": "shuffle2"
+    },
+    "cgnr6760pn2": {
+      "date_base": "20260630",
+      "output_root": "output_hpcg_spmv_filt_dsub",
+      "run_id": "20260630-full-hpcg-spmv-dsub",
+      "shuffle": "shuffle2"
+    }
+  },
+  "jacobi2d5p": {
+    "c920bn3": {
+      "date_base": "20260630",
+      "output_root": "output_jacobi2d5p_filt_dsub",
+      "run_id": "20260630-full-jacobi2d5p-dsub",
+      "shuffle": "shuffle2"
+    },
+    "camd9554n1": {
+      "date_base": "20260630",
+      "output_root": "output_jacobi2d5p_filt_dsub",
+      "run_id": "20260630-full-jacobi2d5p-dsub",
+      "shuffle": "shuffle2"
+    },
+    "cgnr6760pn2": {
+      "date_base": "20260630",
+      "output_root": "output_jacobi2d5p_filt_dsub",
+      "run_id": "20260630-full-jacobi2d5p-dsub",
+      "shuffle": "shuffle2"
+    }
+  },
+  "npb_ep": {
+    "c920bn3": {
+      "date_base": "20260630",
+      "output_root": "output_npb_ep_filt_dsub",
+      "run_id": "20260630-full-npb-ep-dsub",
+      "shuffle": "shuffle2"
+    },
+    "camd9554n1": {
+      "date_base": "20260630",
+      "output_root": "output_npb_ep_filt_dsub",
+      "run_id": "20260630-full-npb-ep-dsub",
+      "shuffle": "shuffle2"
+    },
+    "cgnr6760pn2": {
+      "date_base": "20260630",
+      "output_root": "output_npb_ep_filt_dsub",
+      "run_id": "20260630-full-npb-ep-dsub",
+      "shuffle": "shuffle2"
+    }
+  },
+  "npb_ft_fft": {
+    "c920bn3": {
+      "date_base": "20260630",
+      "output_root": "output_npb_ft_fft_filt_dsub",
+      "run_id": "20260630-full-npb-ft-fft-dsub",
+      "shuffle": "shuffle2"
+    },
+    "camd9554n1": {
+      "date_base": "20260630",
+      "output_root": "output_npb_ft_fft_filt_dsub",
+      "run_id": "20260630-full-npb-ft-fft-dsub",
+      "shuffle": "shuffle2"
+    },
+    "cgnr6760pn2": {
+      "date_base": "20260630",
+      "output_root": "output_npb_ft_fft_filt_dsub",
+      "run_id": "20260630-full-npb-ft-fft-dsub",
+      "shuffle": "shuffle2"
+    }
+  },
+  "openblas_axpy": {
+    "c920bn3": {
+      "date_base": "20260630",
+      "output_root": "output_openblas_axpy_filt_dsub",
+      "run_id": "20260630-full-openblas-axpy-dsub",
+      "shuffle": "shuffle2"
+    },
+    "camd9554n1": {
+      "date_base": "20260630",
+      "output_root": "output_openblas_axpy_filt_dsub",
+      "run_id": "20260630-full-openblas-axpy-dsub",
+      "shuffle": "shuffle2"
+    },
+    "cgnr6760pn2": {
+      "date_base": "20260630",
+      "output_root": "output_openblas_axpy_filt_dsub",
+      "run_id": "20260630-full-openblas-axpy-dsub",
+      "shuffle": "shuffle2"
+    }
+  },
+  "openblas_dot": {
+    "c920bn3": {
+      "date_base": "20260630",
+      "output_root": "output_openblas_dot_filt_dsub",
+      "run_id": "20260630-full-openblas-dot-dsub",
+      "shuffle": "shuffle2"
+    },
+    "camd9554n1": {
+      "date_base": "20260630",
+      "output_root": "output_openblas_dot_filt_dsub",
+      "run_id": "20260630-full-openblas-dot-dsub",
+      "shuffle": "shuffle2"
+    },
+    "cgnr6760pn2": {
+      "date_base": "20260630",
+      "output_root": "output_openblas_dot_filt_dsub",
+      "run_id": "20260630-full-openblas-dot-dsub",
+      "shuffle": "shuffle2"
+    }
+  },
+  "openblas_gemm": {
+    "c920bn3": {
+      "date_base": "20260630",
+      "output_root": "output_openblas_gemm_filt_dsub",
+      "run_id": "20260630-full-openblas-gemm-dsub",
+      "shuffle": "shuffle2"
+    },
+    "camd9554n1": {
+      "date_base": "20260630",
+      "output_root": "output_openblas_gemm_filt_dsub",
+      "run_id": "20260630-full-openblas-gemm-dsub",
+      "shuffle": "shuffle2"
+    },
+    "cgnr6760pn2": {
+      "date_base": "20260630",
+      "output_root": "output_openblas_gemm_filt_dsub",
+      "run_id": "20260630-full-openblas-gemm-dsub",
+      "shuffle": "shuffle2"
+    }
+  },
+  "openblas_gemv": {
+    "c920bn3": {
+      "date_base": "20260630",
+      "output_root": "output_openblas_gemv_filt_dsub",
+      "run_id": "20260630-full-openblas-gemv-dsub",
+      "shuffle": "shuffle2"
+    },
+    "camd9554n1": {
+      "date_base": "20260630",
+      "output_root": "output_openblas_gemv_filt_dsub",
+      "run_id": "20260630-full-openblas-gemv-dsub",
+      "shuffle": "shuffle2"
+    },
+    "cgnr6760pn2": {
+      "date_base": "20260630",
+      "output_root": "output_openblas_gemv_filt_dsub",
+      "run_id": "20260630-full-openblas-gemv-dsub",
+      "shuffle": "shuffle2"
+    }
+  },
+  "stream_triad": {
+    "c920bn3": {
+      "date_base": "20260630",
+      "output_root": "output_stream_triad_filt_dsub",
+      "run_id": "20260630-full-stream-triad-dsub",
+      "shuffle": "shuffle2"
+    },
+    "camd9554n1": {
+      "date_base": "20260630",
+      "output_root": "output_stream_triad_filt_dsub",
+      "run_id": "20260630-full-stream-triad-dsub",
+      "shuffle": "shuffle2"
+    },
+    "cgnr6760pn2": {
+      "date_base": "20260630",
+      "output_root": "output_stream_triad_filt_dsub",
+      "run_id": "20260630-full-stream-triad-dsub",
+      "shuffle": "shuffle2"
+    }
+  },
+  "tl_f90_cg_calc_w": {
+    "c920bn3": {
+      "date_base": "20260630",
+      "output_root": "output_tl_f90_cg_calc_w_filt_dsub",
+      "run_id": "20260630-full-tl-f90-cg-calc-w-dsub",
+      "shuffle": "shuffle2"
+    },
+    "camd9554n1": {
+      "date_base": "20260630",
+      "output_root": "output_tl_f90_cg_calc_w_filt_dsub",
+      "run_id": "20260630-full-tl-f90-cg-calc-w-dsub",
+      "shuffle": "shuffle2"
+    },
+    "cgnr6760pn2": {
+      "date_base": "20260630",
+      "output_root": "output_tl_f90_cg_calc_w_filt_dsub",
+      "run_id": "20260630-full-tl-f90-cg-calc-w-dsub",
+      "shuffle": "shuffle2"
+    }
+  }
 }
