@@ -1,0 +1,73 @@
+\begin{table*}[htbp]
+\centering
+\small
+\caption{Cross-timer timing-measurement divergence reduction of the TacVar filter, per kernel and grid size. Each entry is the percentage reduction in the aggregate Wasserstein distance between the non-reference timers and the per-platform reference timer, from the raw measured time~$T_m$ to the filtered residual time~$T_r$ (reference timer: TSC on x86, CNTVCT on ARM; $\mathrm{np}=64$). Higher is better~($\uparrow$): a larger value means the filter removes more cross-timer disagreement; a negative value means the filter \emph{increases} divergence at that operating point.}
+\label{tab:xtimer-divergence-reduction}
+\begin{tabular}{llrrr}
+\toprule
+\multirow{2}{*}{Kernel} & \multirow{2}{*}{Grid size} & \multicolumn{3}{c}{Cross-timer divergence reduction $T_m\!\rightarrow\!T_r$ (\%, higher is better $\uparrow$)} \\
+\cmidrule(lr){3-5}
+ & & Intel Xeon 6760P & AMD EPYC 9554 & Kunpeng 920B \\
+\midrule
+\multirow{2}{*}{Jacobi Stencil} & 64 & 94.6 & 97.1 & 86.2 \\
+ & 128 & 93.7 & 96.4 & 85.9 \\
+%  & 256 & 92.4 & 97.6 & 78.2 \\
+%  & 512 & 58.7 & 93.6 & 74.1 \\
+\midrule
+\multirow{2}{*}{Gauss-Seidel Stencil} & 64 & 96.9 & 96.8 & 97.8 \\
+ & 128 & 96.2 & 98.0 & 95.2 \\
+%  & 256 & 95.4 & 97.9 & 97.3 \\
+%  & 512 & 94.1 & 97.2 & 84.4 \\
+\midrule
+\multirow{2}{*}{TeaLeaf CG Stencil} & 64 & 98.0 & 97.1 & 88.2 \\
+ & 128 & 97.6 & 97.8 & 94.0 \\
+%  & 256 & 80.5 & 95.1 & 84.8 \\
+%  & 512 & 76.8 & 81.7 & 29.2 \\
+\midrule
+\multirow{2}{*}{GEMM} & 32 & 71.9 & 95.1 & 65.8 \\
+ & 64 & 15.8 & 91.5 & 65.0 \\
+%  & 128 & -126.8 & 96.5 & 89.0 \\
+%  & 256 & -364.3 & 91.5 & 49.4 \\
+\midrule
+\multirow{2}{*}{PolyBench GEMM} & 32 & 42.7 & 86.1 & 94.6 \\
+ & 64 & 32.5 & 63.1 & 74.4 \\
+%  & 128 & 44.6 & 31.5 & 79.2 \\
+%  & 256 & 51.8 & 10.5 & 80.4 \\
+\midrule
+\multirow{2}{*}{GEMV} & 64 & 92.3 & 97.0 & 93.3 \\
+ & 128 & 89.3 & 96.8 & 88.4 \\
+%  & 256 & 91.0 & 97.8 & 87.0 \\
+%  & 512 & 77.8 & 96.7 & 77.9 \\
+\midrule
+\multirow{2}{*}{SpMV} & 8 & 49.3 & 74.4 & 88.0 \\
+ & 12 & 31.4 & 52.5 & 87.2 \\
+%  & 16 & 14.3 & 41.4 & 44.5 \\
+%  & 24 & 5.6 & 37.9 & 7.6 \\
+\midrule
+\multirow{2}{*}{AXPY} & 64 & 92.3 & 96.1 & 95.3 \\
+ & 128 & 93.3 & 94.5 & 89.0 \\
+%  & 256 & 88.9 & 88.4 & 83.1 \\
+%  & 512 & 40.6 & 77.1 & 65.6 \\
+\midrule
+\multirow{2}{*}{DOT} & 64 & 89.6 & 99.0 & 94.6 \\
+ & 128 & 93.2 & 98.3 & 89.7 \\
+%  & 256 & 94.0 & 97.3 & 88.3 \\
+%  & 512 & 53.8 & 95.7 & 33.0 \\
+\midrule
+\multirow{2}{*}{Triad} & 64 & 95.4 & 93.4 & 93.4 \\
+ & 128 & 97.4 & 87.2 & 82.3 \\
+%  & 256 & 96.6 & 80.3 & 77.6 \\
+%  & 512 & 43.0 & 35.3 & 42.1 \\
+\midrule
+\multirow{2}{*}{FFT} & 64 & 36.0 & 94.8 & 80.8 \\
+ & 128 & 32.2 & 97.3 & 91.1 \\
+%  & 256 & 21.3 & 95.6 & 77.5 \\
+%  & 512 & 11.2 & 94.5 & 33.4 \\
+\midrule
+\multirow{2}{*}{EP} & 64 & 64.9 & 89.8 & 95.2 \\
+ & 128 & 35.9 & 86.0 & 83.4 \\
+%  & 256 & 19.0 & 79.7 & 93.0 \\
+%  & 512 & -21.7 & 83.7 & 77.5 \\
+\bottomrule
+\end{tabular}
+\end{table*}
